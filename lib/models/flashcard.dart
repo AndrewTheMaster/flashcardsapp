@@ -1,19 +1,27 @@
 class Flashcard {
-  String character;
-  String pinyin;
-  String translation;
+  String hanzi;       // Иероглифы
+  String pinyin;      // Пиньинь
+  String translation; // Перевод
 
-  Flashcard({required this.character, required this.pinyin, required this.translation});
+  Flashcard({
+    required this.hanzi,
+    required this.pinyin,
+    required this.translation,
+  });
 
-  Map<String, dynamic> toJson() => {
-    'character': character,
-    'pinyin': pinyin,
-    'translation': translation,
-  };
+  // Метод для преобразования в JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'hanzi': hanzi,
+      'pinyin': pinyin,
+      'translation': translation,
+    };
+  }
 
+  // Метод для создания объекта Flashcard из JSON
   factory Flashcard.fromJson(Map<String, dynamic> json) {
     return Flashcard(
-      character: json['character'],
+      hanzi: json['hanzi'],
       pinyin: json['pinyin'],
       translation: json['translation'],
     );

@@ -12,6 +12,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Flashcard> flashcards = [];
+  int currentIndex = 0;
 
   @override
   void initState() {
@@ -26,20 +27,37 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  int currentIndex = 0;
-  bool showTranslation = false;
+  void _saveFlashcards() async {
+    await StorageService.saveFlashcards(flashcards);
+  }
 
   void nextCard() {
+    if (flashcards.isEmpty) return;
     setState(() {
       currentIndex = (currentIndex + 1) % flashcards.length;
-      showTranslation = false;
     });
   }
 
-  void flipCard() {
-    setState(() {
-      showTranslation = !showTranslation;
-    });
+  void _editFlashcards() async {
+    final updatedFlashcards = await Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => FlashcardEditorScreen(
+            onSave: (hanzi, pinyin, translation) {
+              setState(() {
+                flashcards.add(Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation));
+              });
+              _saveFlashcards();
+            },
+          )),
+    );
+
+    if (updatedFlashcards != null) {
+      setState(() {
+        flashcards = updatedFlashcards;
+      });
+      _saveFlashcards();
+    }
   }
 
   @override
@@ -49,9 +67,8 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Center(
         child: flashcards.isNotEmpty
             ? FlashcardWidget(
-          flashcard: flashcards[currentIndex],
-          onFlip: flipCard,
-          showTranslation: showTranslation,
+          frontText: flashcards[currentIndex].hanzi,
+          backText: flashcards[currentIndex].translation,
         )
             : Text('Добавьте карточки в редакторе'),
       ),
@@ -63,19 +80,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           children: [
             ListTile(
-              title: Text('Edit Flashcards'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => FlashcardEditorScreen(flashcards: flashcards)),
-              ),
+              title: Text('Редактировать карточки'),
+              onTap: _editFlashcards,
             ),
             ListTile(
-              title: Text('Play Game'),
+              title: Text('Играть'),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => FlashcardGameScreen(flashcards: flashcards)),
+                  builder: (context) => FlashcardGameScreen(flashcards: flashcards),
+                ),
               ),
             ),
           ],
