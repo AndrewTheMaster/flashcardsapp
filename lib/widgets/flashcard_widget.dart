@@ -4,10 +4,12 @@ import '../models/flashcard.dart';
 class FlashcardWidget extends StatefulWidget {
   final Flashcard flashcard;
   final bool isFlipped;
+  final VoidCallback onFlip; // Колбэк для обработки переворота
 
   const FlashcardWidget({
     required this.flashcard,
     required this.isFlipped,
+    required this.onFlip,
     Key? key,
   }) : super(key: key);
 
@@ -30,7 +32,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with SingleTickerProv
     _animation = Tween<double>(begin: 0, end: 1).animate(_controller);
     _isFlipped = widget.isFlipped;
     if (_isFlipped) {
-      _controller.value = 1.0; // Если карточка должна быть перевернута, устанавливаем анимацию в конечное состояние
+      _controller.value = 1.0;
     }
   }
 
@@ -56,6 +58,11 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with SingleTickerProv
     setState(() {
       _isFlipped = !_isFlipped;
     });
+
+    // Вызываем колбэк при перевороте карточки
+    if (_isFlipped) {
+      widget.onFlip();
+    }
   }
 
   @override
@@ -73,8 +80,8 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with SingleTickerProv
         builder: (context, child) {
           return Transform(
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // Добавляем перспективу
-              ..rotateY(_animation.value * 3.141592653589793), // Поворачиваем по оси Y
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(_animation.value * 3.141592653589793),
             alignment: Alignment.center,
             child: _isFlipped ? _buildBackCard() : _buildFrontCard(),
           );
@@ -113,7 +120,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with SingleTickerProv
   Widget _buildBackCard() {
     return Transform(
       transform: Matrix4.identity()
-        ..rotateY(3.141592653589793), // Поворачиваем текст обратно на 180 градусов
+        ..rotateY(3.141592653589793),
       alignment: Alignment.center,
       child: Container(
         key: const ValueKey('back'),

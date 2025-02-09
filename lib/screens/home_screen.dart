@@ -13,7 +13,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Flashcard> flashcards = [];
   int currentIndex = 0;
-  bool isFlipped = false; // Начальное состояние переворота
+  bool _isFlipped = false;
 
   @override
   void initState() {
@@ -32,11 +32,27 @@ class _HomeScreenState extends State<HomeScreen> {
     await StorageService.saveFlashcards(flashcards);
   }
 
-  void nextCard() {
+  void _nextCard() {
     if (flashcards.isEmpty) return;
     setState(() {
       currentIndex = (currentIndex + 1) % flashcards.length;
-      isFlipped = false; // Сбрасываем состояние переворота при переходе на следующую карточку
+      _isFlipped = false; // Сбрасываем состояние переворота
+    });
+  }
+
+  void _onCardFlipped() {
+    // После переворота карточки ждем 2 секунды, возвращаем карточку в исходное состояние и переходим к следующей
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _isFlipped = false; // Возвращаем карточку в исходное состояние
+        });
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _nextCard(); // Переходим к следующей карточке
+          }
+        });
+      }
     });
   }
 
@@ -44,14 +60,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final updatedFlashcards = await Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (context) => FlashcardEditorScreen(
-            onSave: (hanzi, pinyin, translation) {
-              setState(() {
-                flashcards.add(Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation));
-              });
-              _saveFlashcards();
-            },
-          )),
+        builder: (context) => FlashcardEditorScreen(
+          onSave: (hanzi, pinyin, translation) {
+            setState(() {
+              flashcards.add(Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation));
+            });
+            _saveFlashcards();
+          },
+        ),
+      ),
     );
 
     if (updatedFlashcards != null) {
@@ -65,28 +82,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Chinese Flashcards')),
+      appBar: AppBar(title: const Text('Chinese Flashcards')),
       body: Center(
         child: flashcards.isNotEmpty
             ? FlashcardWidget(
           flashcard: flashcards[currentIndex],
-          isFlipped: isFlipped, // Передаем состояние переворота
+          isFlipped: _isFlipped,
+          onFlip: _onCardFlipped, // Передаем колбэк для обработки переворота
         )
-            : Text('Добавьте карточки в редакторе'),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: nextCard,
-        child: Icon(Icons.arrow_forward),
+            : const Text('Добавьте карточки в редакторе'),
       ),
       drawer: Drawer(
         child: ListView(
           children: [
             ListTile(
-              title: Text('Редактировать карточки'),
+              title: const Text('Редактировать карточки'),
               onTap: _editFlashcards,
             ),
             ListTile(
-              title: Text('Играть'),
+              title: const Text('Играть'),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
