@@ -11,90 +11,84 @@ class FlashcardGameScreen extends StatefulWidget {
 }
 
 class _FlashcardGameScreenState extends State<FlashcardGameScreen> {
-  late List<_GameCard> gameCards;
-  _GameCard? firstSelected;
-  _GameCard? secondSelected;
-  bool isProcessing = false;
+  List<_GameCard> _cards = [];
+  _GameCard? _firstSelected;
+  _GameCard? _secondSelected;
 
   @override
   void initState() {
     super.initState();
-    _shuffleCards();
+    _setupGame();
   }
 
-  void _shuffleCards() {
-    List<_GameCard> cards = [];
-    for (var card in widget.flashcards) {
-      cards.add(_GameCard(content: card.hanzi, id: card.hanzi));
-      cards.add(_GameCard(content: card.translation, id: card.hanzi));
+  void _setupGame() {
+    List<_GameCard> tempCards = [];
+    for (var flashcard in widget.flashcards) {
+      tempCards.add(_GameCard(flashcard, isTranslation: false));
+      tempCards.add(_GameCard(flashcard, isTranslation: true));
     }
-    cards.shuffle();
+    tempCards.shuffle();
     setState(() {
-      gameCards = cards;
+      _cards = tempCards;
     });
   }
 
-  void _selectCard(_GameCard card) {
-    if (isProcessing || card.isMatched || card == firstSelected) return;
+  void _selectCard(int index) {
+    if (_cards[index].isMatched || _firstSelected == _cards[index]) return;
 
     setState(() {
-      card.isFlipped = true;
-      if (firstSelected == null) {
-        firstSelected = card;
+      if (_firstSelected == null) {
+        _firstSelected = _cards[index];
       } else {
-        secondSelected = card;
-        isProcessing = true;
-        Future.delayed(Duration(seconds: 1), _checkMatch);
+        _secondSelected = _cards[index];
+
+        if (_firstSelected!.flashcard == _secondSelected!.flashcard &&
+            _firstSelected!.isTranslation != _secondSelected!.isTranslation) {
+          // Совпадение найдено — убираем карточки
+          _firstSelected!.isMatched = true;
+          _secondSelected!.isMatched = true;
+          _firstSelected = null;
+          _secondSelected = null;
+        } else {
+          // Неправильная пара — переворачиваем обратно через 1 секунду
+          Future.delayed(Duration(seconds: 1), () {
+            setState(() {
+              _firstSelected = null;
+              _secondSelected = null;
+            });
+          });
+        }
       }
     });
-  }
-
-  void _checkMatch() {
-    if (firstSelected != null && secondSelected != null) {
-      if (firstSelected!.id == secondSelected!.id) {
-        setState(() {
-          firstSelected!.isMatched = true;
-          secondSelected!.isMatched = true;
-        });
-      } else {
-        setState(() {
-          firstSelected!.isFlipped = false;
-          secondSelected!.isFlipped = false;
-        });
-      }
-    }
-    firstSelected = null;
-    secondSelected = null;
-    isProcessing = false;
-
-    if (gameCards.every((card) => card.isMatched)) {
-      _showVictoryDialog();
-    }
-  }
-
-  void _showVictoryDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Поздравляем!"),
-        content: Text("Вы нашли все пары."),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _shuffleCards();
-            },
-            child: Text("Играть заново"),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isGameWon = _cards.every((card) => card.isMatched);
+
+    if (isGameWon) {
+      Future.delayed(Duration(milliseconds: 500), () {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text("Победа!"),
+            content: Text("Вы нашли все пары!"),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _setupGame();
+                },
+                child: Text("Играть снова"),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text('Игра с карточками')),
+      appBar: AppBar(title: Text('Игра на совпадение')),
       body: GridView.builder(
         padding: EdgeInsets.all(10),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -102,19 +96,32 @@ class _FlashcardGameScreenState extends State<FlashcardGameScreen> {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
-        itemCount: gameCards.length,
+        itemCount: _cards.length,
         itemBuilder: (context, index) {
-          _GameCard card = gameCards[index];
+          _GameCard card = _cards[index];
+          bool isFlipped = card == _firstSelected || card == _secondSelected || card.isMatched;
+
           return GestureDetector(
-            onTap: () => _selectCard(card),
+            onTap: () => _selectCard(index),
             child: Card(
-              color: card.isMatched
-                  ? Colors.transparent
-                  : card.isFlipped
-                  ? Colors.white
-                  : Colors.grey,
+              color: isFlipped ? Colors.white : Colors.grey,
               child: Center(
-                child: card.isFlipped ? Text(card.content, style: TextStyle(fontSize: 20)) : null,
+                child: isFlipped
+                    ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      card.isTranslation ? card.flashcard.translation : card.flashcard.hanzi,
+                      style: TextStyle(fontSize: 20),
+                    ),
+                    if (!card.isTranslation)
+                      Text(
+                        card.flashcard.pinyin,
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                  ],
+                )
+                    : Icon(Icons.help_outline, size: 32, color: Colors.white),
               ),
             ),
           );
@@ -125,10 +132,9 @@ class _FlashcardGameScreenState extends State<FlashcardGameScreen> {
 }
 
 class _GameCard {
-  final String content;
-  final String id;
-  bool isFlipped = false;
+  final Flashcard flashcard;
+  final bool isTranslation;
   bool isMatched = false;
 
-  _GameCard({required this.content, required this.id});
+  _GameCard(this.flashcard, {required this.isTranslation});
 }

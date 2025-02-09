@@ -9,7 +9,6 @@ class Flashcard {
     required this.translation,
   });
 
-  // Метод для преобразования в JSON
   Map<String, dynamic> toJson() {
     return {
       'hanzi': hanzi,
@@ -18,7 +17,6 @@ class Flashcard {
     };
   }
 
-  // Метод для создания объекта Flashcard из JSON
   factory Flashcard.fromJson(Map<String, dynamic> json) {
     return Flashcard(
       hanzi: json['hanzi'],

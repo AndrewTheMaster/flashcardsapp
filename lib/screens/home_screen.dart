@@ -13,6 +13,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Flashcard> flashcards = [];
   int currentIndex = 0;
+  bool isFlipped = false; // Начальное состояние переворота
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (flashcards.isEmpty) return;
     setState(() {
       currentIndex = (currentIndex + 1) % flashcards.length;
+      isFlipped = false; // Сбрасываем состояние переворота при переходе на следующую карточку
     });
   }
 
@@ -67,8 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Center(
         child: flashcards.isNotEmpty
             ? FlashcardWidget(
-          frontText: flashcards[currentIndex].hanzi,
-          backText: flashcards[currentIndex].translation,
+          flashcard: flashcards[currentIndex],
+          isFlipped: isFlipped, // Передаем состояние переворота
         )
             : Text('Добавьте карточки в редакторе'),
       ),
