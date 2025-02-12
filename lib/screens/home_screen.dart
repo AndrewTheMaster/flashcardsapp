@@ -4,6 +4,7 @@ import '../models/flashcard.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
 import '../services/storage_service.dart';
+import '../screens/sentence_completion_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -105,6 +106,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => FlashcardGameScreen(flashcards: flashcards),
+                ),
+              ),
+            ),
+            ListTile(
+              title: const Text('Заполни пропуски'),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SentenceCompletionScreen(flashcards: flashcards),
                 ),
               ),
             ),
