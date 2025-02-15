@@ -13,10 +13,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<FlashcardPack> flashcardPacks = []; // Список паков карточек
-  int currentPackIndex = 0; // Индекс текущего пака
-  int currentCardIndex = 0; // Индекс текущей карточки
+  List<FlashcardPack> flashcardPacks = [];
+  int currentPackIndex = 0;
+  int currentCardIndex = 0;
   bool _isFlipped = false;
+  bool _packsExpanded = false;
 
   @override
   void initState() {
@@ -35,73 +36,21 @@ class _HomeScreenState extends State<HomeScreen> {
     await StorageService.saveFlashcardPacks(flashcardPacks);
   }
 
-  void _nextCard() {
-    if (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty) return;
+  void _deletePack(int index) {
     setState(() {
-      currentCardIndex = (currentCardIndex + 1) % flashcardPacks[currentPackIndex].cards.length;
-      _isFlipped = false; // Сбрасываем состояние переворота
-    });
-  }
-
-  void _onCardFlipped() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isFlipped = false; // Возвращаем карточку в исходное состояние
-        });
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            _nextCard(); // Переходим к следующей карточке
-          }
-        });
+      flashcardPacks.removeAt(index);
+      if (currentPackIndex >= flashcardPacks.length) {
+        currentPackIndex = flashcardPacks.isEmpty ? 0 : flashcardPacks.length - 1;
       }
     });
-  }
-
-  void _editFlashcards() async {
-    final updatedFlashcards = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FlashcardEditorScreen(
-          onSave: (hanzi, pinyin, translation) {
-            setState(() {
-              flashcardPacks[currentPackIndex].cards.add(
-                Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation),
-              );
-            });
-            _saveFlashcardPacks();
-          },
-          onUpdate: (hanzi, pinyin, translation) {
-            final index = flashcardPacks[currentPackIndex].cards.indexWhere((card) => card.hanzi == hanzi);
-            if (index != -1) {
-              setState(() {
-                flashcardPacks[currentPackIndex].cards[index] = Flashcard(
-                  hanzi: hanzi,
-                  pinyin: pinyin,
-                  translation: translation,
-                );
-              });
-              _saveFlashcardPacks();
-            }
-          },
-          existingCards: flashcardPacks[currentPackIndex].cards.map((card) => card.toJson()).toList(),
-        ),
-      ),
-    );
-
-    if (updatedFlashcards != null) {
-      setState(() {
-        flashcardPacks[currentPackIndex].cards = updatedFlashcards;
-      });
-      _saveFlashcardPacks();
-    }
+    _saveFlashcardPacks();
   }
 
   void _switchPack(int index) {
     setState(() {
       currentPackIndex = index;
-      currentCardIndex = 0; // Сбрасываем индекс карточки при переключении пака
-      _isFlipped = false; // Сбрасываем состояние переворота
+      currentCardIndex = 0;
+      _isFlipped = false;
     });
   }
 
@@ -137,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (newPackName != null) {
       setState(() {
         flashcardPacks.add(FlashcardPack(name: newPackName, cards: []));
-        currentPackIndex = flashcardPacks.length - 1; // Переключаемся на новый пак
+        currentPackIndex = flashcardPacks.length - 1;
       });
       _saveFlashcardPacks();
     }
@@ -156,23 +105,42 @@ class _HomeScreenState extends State<HomeScreen> {
             ? FlashcardWidget(
           flashcard: currentPack.cards[currentCardIndex],
           isFlipped: _isFlipped,
-          onFlip: _onCardFlipped,
+          onFlip: () {
+            setState(() {
+              _isFlipped = !_isFlipped;
+            });
+          },
         )
             : const Text('Добавьте карточки в редакторе'),
       ),
       drawer: Drawer(
         child: ListView(
           children: [
-            // Пункт меню для переключения между паками
-            ...flashcardPacks.asMap().entries.map((entry) {
-              final index = entry.key;
-              final pack = entry.value;
-              return ListTile(
-                title: Text(pack.name),
-                selected: index == currentPackIndex,
-                onTap: () => _switchPack(index),
-              );
-            }).toList(),
+            ListTile(
+              title: Text('Паки карточек'),
+              trailing: IconButton(
+                icon: Icon(_packsExpanded ? Icons.expand_less : Icons.expand_more),
+                onPressed: () {
+                  setState(() {
+                    _packsExpanded = !_packsExpanded;
+                  });
+                },
+              ),
+            ),
+            if (_packsExpanded)
+              ...flashcardPacks.asMap().entries.map((entry) {
+                final index = entry.key;
+                final pack = entry.value;
+                return ListTile(
+                  title: Text(pack.name),
+                  selected: index == currentPackIndex,
+                  onTap: () => _switchPack(index),
+                  trailing: IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => _deletePack(index),
+                  ),
+                );
+              }).toList(),
             const Divider(),
             ListTile(
               title: const Text('Создать новый пак'),
@@ -180,7 +148,35 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               title: const Text('Редактировать карточки'),
-              onTap: _editFlashcards,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FlashcardEditorScreen(
+                    onSave: (hanzi, pinyin, translation) {
+                      setState(() {
+                        flashcardPacks[currentPackIndex].cards.add(
+                          Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation),
+                        );
+                      });
+                      _saveFlashcardPacks();
+                    },
+                    onUpdate: (hanzi, pinyin, translation) {
+                      final index = flashcardPacks[currentPackIndex].cards.indexWhere((card) => card.hanzi == hanzi);
+                      if (index != -1) {
+                        setState(() {
+                          flashcardPacks[currentPackIndex].cards[index] = Flashcard(
+                            hanzi: hanzi,
+                            pinyin: pinyin,
+                            translation: translation,
+                          );
+                        });
+                        _saveFlashcardPacks();
+                      }
+                    },
+                    existingCards: flashcardPacks[currentPackIndex].cards.map((card) => card.toJson()).toList(),
+                  ),
+                ),
+              ),
             ),
             ListTile(
               title: const Text('Играть'),
