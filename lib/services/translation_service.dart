@@ -16,36 +16,38 @@ class TranslationService {
   }
 
   static Map<String, String> _extractData(Document document) {
-    // Извлекаем пиньинь из элемента с классом "py"
     final pinyinElement = document.querySelector('.py');
     final pinyin = pinyinElement?.text.split('<img')[0].trim() ?? '';
 
-    // Извлекаем перевод из элемента с классом "ru"
     final translationElement = document.querySelector('.ru');
-    final translation = _extractFirstTranslation(translationElement?.text ?? '');
+    final translation = _extractFirstTranslation(translationElement);
 
     return {'pinyin': pinyin, 'translation': translation};
   }
 
-  static String _extractFirstTranslation(String translationText) {
-    // Проверяем, есть ли в тексте "1)"
-    if (translationText.contains('1)')) {
-      // Убираем "1)" и берём текст до первой запятой
-      final startIndex = translationText.indexOf('1)') + 2; // +2, чтобы пропустить "1)"
-      final commaIndex = translationText.indexOf(',', startIndex);
+  static String _extractFirstTranslation(Element? translationElement) {
+    if (translationElement == null) return '';
+
+    // Удаляем примеры в <div class="m2"> и всё после "2)"
+    translationElement.querySelectorAll('.m2').forEach((e) => e.remove());
+
+    final translationText = translationElement.text.trim();
+    final index2 = translationText.indexOf('2)');
+    final cleanedText = index2 != -1 ? translationText.substring(0, index2).trim() : translationText;
+
+    if (cleanedText.contains('1)')) {
+      final startIndex = cleanedText.indexOf('1)') + 2;
+      final commaIndex = cleanedText.indexOf(',', startIndex);
       if (commaIndex == -1) {
-        // Если запятой нет, возвращаем весь текст после "1)"
-        return translationText.substring(startIndex).trim();
+        return cleanedText.substring(startIndex).trim();
       }
-      return translationText.substring(startIndex, commaIndex).trim();
+      return cleanedText.substring(startIndex, commaIndex).trim();
     } else {
-      // Если "1)" нет, возвращаем весь текст до первой запятой
-      final commaIndex = translationText.indexOf(',');
+      final commaIndex = cleanedText.indexOf(',');
       if (commaIndex == -1) {
-        // Если запятой нет, возвращаем весь текст
-        return translationText.trim();
+        return cleanedText.trim();
       }
-      return translationText.substring(0, commaIndex).trim();
+      return cleanedText.substring(0, commaIndex).trim();
     }
   }
 }

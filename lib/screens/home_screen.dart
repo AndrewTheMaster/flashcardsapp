@@ -5,7 +5,9 @@ import '../models/flashcard_pack.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
 import '../services/storage_service.dart';
+import '../services/translation_service.dart';
 import '../screens/sentence_completion_screen.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -54,16 +56,52 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<List<Flashcard>> _fetchBulkTranslations(List<String> hanziList) async {
+    List<Flashcard> flashcards = [];
+    for (var hanzi in hanziList) {
+      try {
+        final result = await TranslationService.translate(hanzi);
+        flashcards.add(Flashcard(
+          hanzi: hanzi.trim(),
+          pinyin: result['pinyin'] ?? '',
+          translation: result['translation'] ?? '',
+        ));
+      } catch (e) {
+        flashcards.add(Flashcard(
+          hanzi: hanzi.trim(),
+          pinyin: '',
+          translation: 'Ошибка перевода',
+        ));
+      }
+    }
+    return flashcards;
+  }
+
   void _createNewPack() async {
-    final newPackName = await showDialog<String>(
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController bulkCardsController = TextEditingController();
+
+    final newPackData = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) {
-        final controller = TextEditingController();
         return AlertDialog(
           title: Text('Создать новый пак'),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(hintText: 'Введите название пака'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(hintText: 'Введите название пака'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: bulkCardsController,
+                decoration: InputDecoration(
+                  hintText: 'Введите иероглифы (по одному в строке)',
+                ),
+                maxLines: 5,
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -71,9 +109,14 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text('Отмена'),
             ),
             TextButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  Navigator.pop(context, controller.text.trim());
+              onPressed: () async {
+                if (nameController.text.trim().isNotEmpty) {
+                  List<String> hanziList = bulkCardsController.text.trim().split('\n');
+                  List<Flashcard> newCards = await _fetchBulkTranslations(hanziList);
+                  Navigator.pop(context, {
+                    'name': nameController.text.trim(),
+                    'cards': newCards,
+                  });
                 }
               },
               child: Text('Создать'),
@@ -83,13 +126,21 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    if (newPackName != null) {
+    if (newPackData != null) {
       setState(() {
-        flashcardPacks.add(FlashcardPack(name: newPackName, cards: []));
+        flashcardPacks.add(FlashcardPack(name: newPackData['name'], cards: newPackData['cards']));
         currentPackIndex = flashcardPacks.length - 1;
       });
       _saveFlashcardPacks();
     }
+  }
+
+  void _nextCard() {
+    if (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty) return;
+    setState(() {
+      currentCardIndex = (currentCardIndex + 1) % flashcardPacks[currentPackIndex].cards.length;
+      _isFlipped = false; // Сбрасываем состояние переворота
+    });
   }
 
   @override
@@ -108,6 +159,12 @@ class _HomeScreenState extends State<HomeScreen> {
           onFlip: () {
             setState(() {
               _isFlipped = !_isFlipped;
+            });
+            // После переворота ждем 2 секунды и переключаем на следующую карточку
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                _nextCard();
+              }
             });
           },
         )
