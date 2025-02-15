@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import '../services/translation_service.dart';
+import 'dart:async';
 
 class FlashcardEditorScreen extends StatefulWidget {
   final Function(String, String, String) onSave;
-  final String? initialHanzi;
-  final String? initialPinyin;
-  final String? initialTranslation;
+  final Function(String, String, String) onUpdate;
+  final List<Map<String, dynamic>> existingCards;
 
   const FlashcardEditorScreen({
     required this.onSave,
-    this.initialHanzi,
-    this.initialPinyin,
-    this.initialTranslation,
+    required this.onUpdate,
+    required this.existingCards,
     Key? key,
   }) : super(key: key);
 
@@ -24,52 +23,110 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
   final _pinyinController = TextEditingController();
   final _translationController = TextEditingController();
   String? _suggestionMessage;
+  Timer? _debounceTimer;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.initialHanzi != null) {
-      _hanziController.text = widget.initialHanzi!;
-      _pinyinController.text = widget.initialPinyin!;
-      _translationController.text = widget.initialTranslation!;
-    }
+  void dispose() {
+    _hanziController.dispose();
+    _pinyinController.dispose();
+    _translationController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
-  Future<void> _fetchTranslation() async {
-    String text = _hanziController.text.trim();
-    if (text.isEmpty) return;
+  void _onHanziChanged(String text) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+    }
 
-    final result = await TranslationService.translate(text);
-    setState(() {
-      _pinyinController.text = result['pinyin']!;
-      _translationController.text = result['translation']!;
-      _suggestionMessage = "Предложен перевод (можно изменить)";
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _fetchTranslation();
     });
   }
 
-  void _saveFlashcard() {
-    widget.onSave(
-      _hanziController.text.trim(),
-      _pinyinController.text.trim(),
-      _translationController.text.trim(),
+  Future<void> _fetchTranslation() async {
+    final text = _hanziController.text.trim();
+    if (text.isEmpty) return;
+
+    try {
+      final result = await TranslationService.translate(text);
+      setState(() {
+        _pinyinController.text = result['pinyin']!;
+        _translationController.text = result['translation']!;
+        _suggestionMessage = "Предложен перевод (можно изменить)";
+      });
+    } catch (e) {
+      setState(() {
+        _suggestionMessage = "Ошибка при загрузке перевода";
+      });
+    }
+  }
+
+  void _saveOrUpdateFlashcard() {
+    final hanzi = _hanziController.text.trim();
+    final pinyin = _pinyinController.text.trim();
+    final translation = _translationController.text.trim();
+
+    // Проверяем, заполнены ли обязательные поля
+    if (hanzi.isEmpty || translation.isEmpty) {
+      // Показываем сообщение об ошибке
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Поля "Иероглиф" и "Перевод" обязательны для заполнения'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // Прерываем выполнение, если поля пустые
+    }
+
+    // Проверяем, существует ли карточка с таким иероглифом
+    final existingCard = widget.existingCards.firstWhere(
+          (card) => card['hanzi'] == hanzi,
+      orElse: () => {},
     );
+
+    if (existingCard.isNotEmpty) {
+      // Если карточка существует, обновляем её
+      widget.onUpdate(hanzi, pinyin, translation);
+    } else {
+      // Если карточки нет, создаём новую
+      widget.onSave(hanzi, pinyin, translation);
+    }
+
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Добавить карточку")),
+      appBar: AppBar(title: Text("Добавить/Изменить карточку")),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(controller: _hanziController, decoration: InputDecoration(labelText: "Иероглиф"), onChanged: (_) => _fetchTranslation()),
-            TextField(controller: _pinyinController, decoration: InputDecoration(labelText: "Пиньинь")),
-            TextField(controller: _translationController, decoration: InputDecoration(labelText: "Перевод")),
-            if (_suggestionMessage != null) Text(_suggestionMessage!, style: TextStyle(color: Colors.grey)),
+            TextField(
+              controller: _hanziController,
+              decoration: InputDecoration(labelText: "Иероглиф"),
+              onChanged: _onHanziChanged,
+            ),
+            TextField(
+              controller: _pinyinController,
+              decoration: InputDecoration(labelText: "Пиньинь"),
+            ),
+            TextField(
+              controller: _translationController,
+              decoration: InputDecoration(labelText: "Перевод"),
+            ),
+            if (_suggestionMessage != null)
+              Text(
+                _suggestionMessage!,
+                style: TextStyle(color: Colors.grey),
+              ),
             SizedBox(height: 20),
-            ElevatedButton(onPressed: _saveFlashcard, child: Text("Сохранить"))
+            ElevatedButton(
+              onPressed: _saveOrUpdateFlashcard,
+              child: Text("Сохранить"),
+            ),
           ],
         ),
       ),

@@ -68,6 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
             });
             _saveFlashcards();
           },
+          onUpdate: (hanzi, pinyin, translation) {
+            // Обновляем существующую карточку
+            final index = flashcards.indexWhere((card) => card.hanzi == hanzi);
+            if (index != -1) {
+              setState(() {
+                flashcards[index] = Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation);
+              });
+              _saveFlashcards();
+            }
+          },
+          existingCards: flashcards.map((card) => card.toJson()).toList(),
         ),
       ),
     );

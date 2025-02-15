@@ -17,6 +17,7 @@ class Flashcard {
     };
   }
 
+
   factory Flashcard.fromJson(Map<String, dynamic> json) {
     return Flashcard(
       hanzi: json['hanzi'],
