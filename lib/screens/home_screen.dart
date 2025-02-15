@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/flashcard_widget.dart';
 import '../models/flashcard.dart';
+import '../models/flashcard_pack.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
 import '../services/storage_service.dart';
@@ -12,37 +13,37 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Flashcard> flashcards = [];
-  int currentIndex = 0;
+  List<FlashcardPack> flashcardPacks = []; // Список паков карточек
+  int currentPackIndex = 0; // Индекс текущего пака
+  int currentCardIndex = 0; // Индекс текущей карточки
   bool _isFlipped = false;
 
   @override
   void initState() {
     super.initState();
-    _loadFlashcards();
+    _loadFlashcardPacks();
   }
 
-  Future<void> _loadFlashcards() async {
-    List<Flashcard> loadedFlashcards = await StorageService.loadFlashcards();
+  Future<void> _loadFlashcardPacks() async {
+    List<FlashcardPack> loadedPacks = await StorageService.loadFlashcardPacks();
     setState(() {
-      flashcards = loadedFlashcards;
+      flashcardPacks = loadedPacks;
     });
   }
 
-  void _saveFlashcards() async {
-    await StorageService.saveFlashcards(flashcards);
+  void _saveFlashcardPacks() async {
+    await StorageService.saveFlashcardPacks(flashcardPacks);
   }
 
   void _nextCard() {
-    if (flashcards.isEmpty) return;
+    if (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty) return;
     setState(() {
-      currentIndex = (currentIndex + 1) % flashcards.length;
+      currentCardIndex = (currentCardIndex + 1) % flashcardPacks[currentPackIndex].cards.length;
       _isFlipped = false; // Сбрасываем состояние переворота
     });
   }
 
   void _onCardFlipped() {
-    // После переворота карточки ждем 2 секунды, возвращаем карточку в исходное состояние и переходим к следующей
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() {
@@ -64,49 +65,119 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => FlashcardEditorScreen(
           onSave: (hanzi, pinyin, translation) {
             setState(() {
-              flashcards.add(Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation));
+              flashcardPacks[currentPackIndex].cards.add(
+                Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation),
+              );
             });
-            _saveFlashcards();
+            _saveFlashcardPacks();
           },
           onUpdate: (hanzi, pinyin, translation) {
-            // Обновляем существующую карточку
-            final index = flashcards.indexWhere((card) => card.hanzi == hanzi);
+            final index = flashcardPacks[currentPackIndex].cards.indexWhere((card) => card.hanzi == hanzi);
             if (index != -1) {
               setState(() {
-                flashcards[index] = Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation);
+                flashcardPacks[currentPackIndex].cards[index] = Flashcard(
+                  hanzi: hanzi,
+                  pinyin: pinyin,
+                  translation: translation,
+                );
               });
-              _saveFlashcards();
+              _saveFlashcardPacks();
             }
           },
-          existingCards: flashcards.map((card) => card.toJson()).toList(),
+          existingCards: flashcardPacks[currentPackIndex].cards.map((card) => card.toJson()).toList(),
         ),
       ),
     );
 
     if (updatedFlashcards != null) {
       setState(() {
-        flashcards = updatedFlashcards;
+        flashcardPacks[currentPackIndex].cards = updatedFlashcards;
       });
-      _saveFlashcards();
+      _saveFlashcardPacks();
+    }
+  }
+
+  void _switchPack(int index) {
+    setState(() {
+      currentPackIndex = index;
+      currentCardIndex = 0; // Сбрасываем индекс карточки при переключении пака
+      _isFlipped = false; // Сбрасываем состояние переворота
+    });
+  }
+
+  void _createNewPack() async {
+    final newPackName = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: Text('Создать новый пак'),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(hintText: 'Введите название пака'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (controller.text.trim().isNotEmpty) {
+                  Navigator.pop(context, controller.text.trim());
+                }
+              },
+              child: Text('Создать'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newPackName != null) {
+      setState(() {
+        flashcardPacks.add(FlashcardPack(name: newPackName, cards: []));
+        currentPackIndex = flashcardPacks.length - 1; // Переключаемся на новый пак
+      });
+      _saveFlashcardPacks();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentPack = flashcardPacks.isNotEmpty ? flashcardPacks[currentPackIndex] : null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Chinese Flashcards')),
+      appBar: AppBar(
+        title: Text(currentPack != null ? currentPack.name : 'Chinese Flashcards'),
+      ),
       body: Center(
-        child: flashcards.isNotEmpty
+        child: currentPack != null && currentPack.cards.isNotEmpty
             ? FlashcardWidget(
-          flashcard: flashcards[currentIndex],
+          flashcard: currentPack.cards[currentCardIndex],
           isFlipped: _isFlipped,
-          onFlip: _onCardFlipped, // Передаем колбэк для обработки переворота
+          onFlip: _onCardFlipped,
         )
             : const Text('Добавьте карточки в редакторе'),
       ),
       drawer: Drawer(
         child: ListView(
           children: [
+            // Пункт меню для переключения между паками
+            ...flashcardPacks.asMap().entries.map((entry) {
+              final index = entry.key;
+              final pack = entry.value;
+              return ListTile(
+                title: Text(pack.name),
+                selected: index == currentPackIndex,
+                onTap: () => _switchPack(index),
+              );
+            }).toList(),
+            const Divider(),
+            ListTile(
+              title: const Text('Создать новый пак'),
+              onTap: _createNewPack,
+            ),
             ListTile(
               title: const Text('Редактировать карточки'),
               onTap: _editFlashcards,
@@ -116,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => FlashcardGameScreen(flashcards: flashcards),
+                  builder: (context) => FlashcardGameScreen(flashcards: currentPack?.cards ?? []),
                 ),
               ),
             ),
@@ -125,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SentenceCompletionScreen(flashcards: flashcards),
+                  builder: (context) => SentenceCompletionScreen(flashcards: currentPack?.cards ?? []),
                 ),
               ),
             ),

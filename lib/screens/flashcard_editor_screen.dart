@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/translation_service.dart';
 import 'dart:async';
 
+
 class FlashcardEditorScreen extends StatefulWidget {
   final Function(String, String, String) onSave;
   final Function(String, String, String) onUpdate;
@@ -69,14 +70,13 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
 
     // Проверяем, заполнены ли обязательные поля
     if (hanzi.isEmpty || translation.isEmpty) {
-      // Показываем сообщение об ошибке
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Поля "Иероглиф" и "Перевод" обязательны для заполнения'),
           backgroundColor: Colors.red,
         ),
       );
-      return; // Прерываем выполнение, если поля пустые
+      return;
     }
 
     // Проверяем, существует ли карточка с таким иероглифом
