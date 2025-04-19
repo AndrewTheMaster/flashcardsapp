@@ -1,0 +1,1 @@
+/home/andrew/AndroidStudioProjects/flashcardsapp/build/app/intermediates/cxx/Debug/2p4j3052/obj/x86

@@ -1,0 +1,24 @@
+{
+  "basic_conversations": [
+    {
+      "sentence": "我想去买一些水果，特别是苹果和香蕉",
+      "slots": ["苹果", "香蕉"],
+      "hsk_level": 2,
+      "category": "shopping"
+    },
+    {
+      "sentence": "这个周末我要去图书馆学习中文",
+      "slots": ["图书馆", "中文"],
+      "hsk_level": 3,
+      "category": "study"
+    }
+  ],
+  "daily_activities": [
+    {
+      "sentence": "每天早上我都喝一杯咖啡",
+      "slots": ["咖啡"],
+      "hsk_level": 2,
+      "category": "daily"
+    }
+  ]
+} 

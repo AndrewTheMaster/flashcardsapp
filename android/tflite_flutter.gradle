@@ -1,0 +1,16 @@
+def scriptFile = project.buildscript.sourceFile
+def flutterRoot = scriptFile.getParentFile().getParentFile()
+
+gradle.include ':tflite_flutter'
+gradle.project(':tflite_flutter').projectDir = new File(flutterRoot, 'packages/tflite_flutter/android')
+
+project(':tflite_flutter').buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+project(':tflite_flutter').android {
+    namespace "com.example.tflite_flutter"
+} 

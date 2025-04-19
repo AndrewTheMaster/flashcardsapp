@@ -1,0 +1,4 @@
+ext {
+    // Define the namespace for tflite_flutter
+    tflite_flutter_namespace = "org.tensorflow.lite.flutter"
+} 

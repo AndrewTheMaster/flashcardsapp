@@ -1,0 +1,2 @@
+/home/andrew/AndroidStudioProjects/flashcardsapp/android/app/.cxx/RelWithDebInfo/1r1k4j6z/arm64-v8a/CMakeFiles/edit_cache.dir
+/home/andrew/AndroidStudioProjects/flashcardsapp/android/app/.cxx/RelWithDebInfo/1r1k4j6z/arm64-v8a/CMakeFiles/rebuild_cache.dir

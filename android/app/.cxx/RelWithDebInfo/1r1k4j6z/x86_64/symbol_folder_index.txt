@@ -1,0 +1,1 @@
+/home/andrew/AndroidStudioProjects/flashcardsapp/build/app/intermediates/cxx/RelWithDebInfo/1r1k4j6z/obj/x86_64

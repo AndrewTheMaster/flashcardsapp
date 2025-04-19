@@ -1,0 +1,3 @@
+android {
+    namespace "org.tensorflow.lite.flutter"
+} 
