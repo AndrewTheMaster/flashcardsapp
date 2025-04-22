@@ -1,3 +1,127 @@
 # Project exclude paths
 /.gradle/
 /build/
+
+# Gradle files
+.gradle/
+build/
+**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Local configuration file (sdk path, etc)
+local.properties
+**/local.properties
+
+# Android Studio generated files and folders
+.externalNativeBuild/
+.cxx/
+*.apk
+output.json
+captures/
+.navigation/
+*.iml
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+**/android/.idea/
+**/ios/.idea/
+**/macos/.idea/
+**/windows/.idea/
+**/linux/.idea/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+GoogleService-Info.plist
+
+# Android Profiling
+*.hprof
+
+# Flutter/Dart specific
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+pubspec.lock
+/build/
+.DS_Store
+**/ios/Pods/
+**/ios/.symlinks/
+**/coverage/
+
+# Symbol files
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Logs
+*.log
+.log/
+logs/
+
+# Large resource files
+*.jar
+!gradle-wrapper.jar
+*.zip
+*.tar.gz
+*.rar
+*.bfg.jar
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Web related
+**/web/node_modules/
+**/web/coverage/
+**/web/build/
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux specific
+.directory
+.Trash-*
