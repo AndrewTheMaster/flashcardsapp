@@ -1,353 +1,311 @@
 import 'package:flutter/material.dart';
-import '../services/bert_api.dart';
-import '../models/flashcard.dart';
+import 'dart:math' as math;
 import '../models/flashcard_pack.dart';
+import '../models/flashcard.dart';
+import '../localization/app_localizations.dart';
 import 'dart:developer' as developer;
 
 class FillBlanksScreen extends StatefulWidget {
-  final FlashcardPack? currentPack; // Принимаем текущий пак
-  
-  const FillBlanksScreen({Key? key, this.currentPack}) : super(key: key);
-  
+  final FlashcardPack? currentPack;
+  final bool isDarkMode;
+
+  const FillBlanksScreen({
+    Key? key,
+    this.currentPack,
+    this.isDarkMode = false,
+  }) : super(key: key);
+
   @override
   _FillBlanksScreenState createState() => _FillBlanksScreenState();
 }
 
 class _FillBlanksScreenState extends State<FillBlanksScreen> {
-  final BertApi _api = BertApi();
-  List<dynamic> _sentences = [];
-  bool _isLoading = false;
-  String _error = '';
-  int _currentIndex = 0;
-  Map<String, String> _userAnswers = {};
-  bool _showResults = false;
-  final String _difficulty = 'medium'; // Фиксированная средняя сложность
-  int _numCards = 5; // Сколько карточек использовать
-  
+  String? currentSentence;
+  String? hiddenWord;
+  List<String> options = [];
+  bool isCorrect = false;
+  bool isChecked = false;
+  String selectedOption = '';
+  Flashcard? currentFlashcard;
+
   @override
   void initState() {
     super.initState();
-    developer.log('FillBlanksScreen: initState вызван', name: 'fill_blanks');
-    _loadSentences();
+    _generateExercise();
   }
-  
-  Future<void> _loadSentences() async {
-    developer.log('FillBlanksScreen: _loadSentences вызван', name: 'fill_blanks');
+
+  void _generateExercise() {
+    if (widget.currentPack == null || widget.currentPack!.cards.isEmpty) {
+      developer.log('FillBlanksScreen: Текущий пак пуст или null', name: 'fill_blanks_screen');
+      return;
+    }
+
+    final random = math.Random();
+    List<Flashcard> cards = widget.currentPack!.cards;
     
-    setState(() {
-      _isLoading = true;
-      _error = '';
+    // Sort cards by spaced repetition priority
+    // First prioritize cards that need review, then by repetition level (lowest first)
+    cards.sort((a, b) {
+      if (a.needsReview && !b.needsReview) return -1;
+      if (!a.needsReview && b.needsReview) return 1;
+      if (a.needsReview && b.needsReview) {
+        return a.repetitionLevel.compareTo(b.repetitionLevel);
+      }
+      return 0;
     });
     
-    try {
-      developer.log('FillBlanksScreen: Текущий пак: ${widget.currentPack != null ? widget.currentPack!.cards.length : 'null'} карточек', 
-          name: 'fill_blanks');
-      
-      if (widget.currentPack == null || widget.currentPack!.cards.isEmpty) {
-        setState(() {
-          _error = 'Нет доступных карточек в текущем паке';
-          _isLoading = false;
-        });
-        developer.log('FillBlanksScreen: Ошибка - нет карточек', name: 'fill_blanks');
-        return;
-      }
-      
-      final availableCards = List<Flashcard>.from(widget.currentPack!.cards);
-      availableCards.shuffle();
-      final selectedCards = availableCards.take(_numCards).toList();
-      
-      developer.log('FillBlanksScreen: Выбрано ${selectedCards.length} карточек', name: 'fill_blanks');
-      
-      final cardMaps = selectedCards.map((card) => {
-        'hanzi': card.hanzi,
-        'pinyin': card.pinyin,
-        'translation': card.translation,
-      }).toList();
-      
-      // Отладочный ответ для проверки отображения
-      final mockResponse = {
-        'sentences': [
-          {
-            'masked_text': '我喜欢学习[MASK]语。',
-            'original_text': '我喜欢学习中文语。',
-            'answers': {'2': '中文'},
-            'difficulty': 'medium'
-          },
-          {
-            'masked_text': '今天[MASK]很好。',
-            'original_text': '今天天气很好。',
-            'answers': {'1': '天气'},
-            'difficulty': 'medium'
-          },
-          {
-            'masked_text': '我的[MASK]叫小明。',
-            'original_text': '我的朋友叫小明。',
-            'answers': {'1': '朋友'},
-            'difficulty': 'medium'
-          }
-        ]
-      };
-      
-      developer.log('FillBlanksScreen: Получены предложения: ${mockResponse['sentences']?.length}', 
-          name: 'fill_blanks');
-      
-      setState(() {
-        _sentences = mockResponse['sentences'] ?? [];
-        _currentIndex = 0;
-        _isLoading = false;
-      });
-      
-      if (_sentences.isNotEmpty) {
-        developer.log('FillBlanksScreen: Первое предложение: ${_sentences[0]}', 
-            name: 'fill_blanks');
-      }
-      
-    } catch (e) {
-      developer.log('FillBlanksScreen: Ошибка при загрузке: $e', name: 'fill_blanks');
-      setState(() {
-        _error = 'Ошибка при генерации предложений: $e';
-        _isLoading = false;
-      });
+    // Pick first card that needs review, or random if all are reviewed
+    Flashcard randomCard;
+    List<Flashcard> cardsNeedingReview = cards.where((card) => card.needsReview).toList();
+    
+    if (cardsNeedingReview.isNotEmpty) {
+      // Pick a card that needs review (with slight randomization if multiple)
+      int randomIndex = cardsNeedingReview.length > 3 
+          ? random.nextInt(3) // Pick from top 3 that need review
+          : 0; // Just pick the first card if 3 or fewer
+      randomCard = cardsNeedingReview[randomIndex];
+    } else {
+      // No cards need review, pick random
+      int randomIndex = random.nextInt(cards.length);
+      randomCard = cards[randomIndex];
     }
+    
+    currentFlashcard = randomCard;
+    final hanzi = randomCard.hanzi;
+    hiddenWord = hanzi;
+    
+    // Simple sentence template
+    currentSentence = "这是 ____ 。";
+    
+    // Generate options
+    options = [hanzi];
+    
+    // Add more options from other cards
+    while (options.length < 4 && options.length < cards.length) {
+      final otherCard = cards[random.nextInt(cards.length)];
+      if (otherCard.hanzi != hanzi && !options.contains(otherCard.hanzi)) {
+        options.add(otherCard.hanzi);
+      }
+    }
+    
+    // Shuffle options
+    options.shuffle();
+    
+    setState(() {
+      isChecked = false;
+      selectedOption = '';
+    });
+    
+    developer.log('FillBlanksScreen: Сгенерировано упражнение: $currentSentence, правильный ответ: $hiddenWord', 
+        name: 'fill_blanks_screen');
   }
-  
+
+  void _checkAnswer() {
+    final bool isAnswerCorrect = selectedOption == hiddenWord;
+    
+    // Update spaced repetition data
+    if (currentFlashcard != null) {
+      currentFlashcard!.updateNextReviewDate(wasCorrect: isAnswerCorrect);
+    }
+    
+    setState(() {
+      isChecked = true;
+      isCorrect = isAnswerCorrect;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    developer.log('FillBlanksScreen: build вызван, состояние: isLoading=$_isLoading, error=${_error.isEmpty ? "нет" : "есть"}, sentences=${_sentences.length}', 
-        name: 'fill_blanks');
+    // Всегда используем черный текст для отладочного бокса
+    final debugTextColor = Colors.black;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Заполни пропуски'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _loadSentences,
-            tooltip: 'Обновить предложения',
-          ),
-        ],
+        title: Text('fill_blanks'.tr(context)),
       ),
-      body: _isLoading 
-        ? _buildLoadingView()
-        : _error.isNotEmpty
-          ? _buildErrorView()
-          : _sentences.isEmpty
-            ? _buildEmptyView()
-            : _buildSentenceView(),
-    );
-  }
-  
-  Widget _buildLoadingView() {
-    developer.log('FillBlanksScreen: отображение загрузки', name: 'fill_blanks');
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Загрузка предложений...'),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildErrorView() {
-    developer.log('FillBlanksScreen: отображение ошибки: $_error', name: 'fill_blanks');
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 48, color: Colors.red),
-          SizedBox(height: 16),
-          Text(_error, textAlign: TextAlign.center),
-          SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _loadSentences,
-            child: Text('Попробовать снова'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildEmptyView() {
-    developer.log('FillBlanksScreen: отображение пустого экрана', name: 'fill_blanks');
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('Нет доступных предложений'),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadSentences,
-            child: Text('Загрузить предложения'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildSentenceView() {
-    developer.log('FillBlanksScreen: отображение предложения ${_currentIndex + 1}/${_sentences.length}', 
-        name: 'fill_blanks');
-    
-    final currentSentence = _sentences[_currentIndex];
-    final maskedText = currentSentence['masked_text'] ?? '';
-    final originalText = currentSentence['original_text'] ?? '';
-    
-    developer.log('FillBlanksScreen: maskedText="$maskedText", originalText="$originalText"', 
-        name: 'fill_blanks');
-    
-    final parts = maskedText.split('[MASK]');
-    
-    developer.log('FillBlanksScreen: разделено на ${parts.length} частей', name: 'fill_blanks');
-    
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(
-            'Предложение ${_currentIndex + 1} из ${_sentences.length}',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-          ),
-        ),
-        
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  color: Colors.amber[100],
-                  child: Text('Отладка: maskedText="$maskedText"'),
-                ),
-                
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Wrap(
-                      alignment: WrapAlignment.start,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: List.generate(parts.length * 2 - 1, (index) {
-                        developer.log('FillBlanksScreen: создание элемента $index', name: 'fill_blanks');
-                        
-                        if (index % 2 == 0) {
-                          final textPart = parts[index ~/ 2];
-                          developer.log('FillBlanksScreen: текстовая часть [$index]: "$textPart"', 
-                              name: 'fill_blanks');
-                          
-                          return Text(
-                            textPart,
-                            style: TextStyle(fontSize: 18),
-                          );
-                        } else {
-                          final blankIndex = index ~/ 2;
-                          final answerKey = '${_currentIndex}-$blankIndex';
-                          
-                          developer.log('FillBlanksScreen: поле ввода [$index], ключ: $answerKey', 
-                              name: 'fill_blanks');
-                          
-                          return Container(
-                            width: 80,
-                            margin: EdgeInsets.symmetric(horizontal: 4),
-                            child: TextField(
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 18),
-                              decoration: InputDecoration(
-                                hintText: '填空',
-                                enabledBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.blue),
-                                ),
-                              ),
-                              enabled: !_showResults,
-                              controller: TextEditingController(
-                                text: _userAnswers[answerKey] ?? '',
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _userAnswers[answerKey] = value;
-                                });
-                              },
-                            ),
-                          );
-                        }
-                      }),
+      body: widget.currentPack == null || widget.currentPack!.cards.isEmpty
+          ? Center(
+              child: Text('no_cards_available'.tr(context)),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Отладочная информация
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    margin: EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.yellow[100],
+                      border: Border.all(color: Colors.amber),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "${('correct_answer').tr(context)}: $hiddenWord",
+                      style: TextStyle(color: debugTextColor),
                     ),
                   ),
-                ),
-                
-                if (_showResults)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: Card(
-                      color: Colors.green[50],
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Правильные ответы:',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              originalText,
-                              style: TextStyle(fontSize: 18),
-                            ),
-                          ],
-                        ),
+                  
+                  // Show spaced repetition info for debugging
+                  if (currentFlashcard != null)
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      margin: EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[100],
+                        border: Border.all(color: Colors.blue),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "SRS Level: ${currentFlashcard!.repetitionLevel}, Next review: ${currentFlashcard!.nextReviewDate?.toString().substring(0, 10) ?? 'New'}",
+                        style: TextStyle(color: debugTextColor),
                       ),
                     ),
+                  
+                  // Предложение с пропуском
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      currentSentence ?? "",
+                      style: TextStyle(fontSize: 24),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-              ],
+                  
+                  SizedBox(height: 32),
+                  
+                  // Варианты ответов
+                  ...options.map((option) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: OptionButton(
+                      text: option,
+                      isSelected: selectedOption == option,
+                      isCorrect: isChecked && option == hiddenWord,
+                      isWrong: isChecked && selectedOption == option && option != hiddenWord,
+                      onTap: () {
+                        if (!isChecked) {
+                          setState(() {
+                            selectedOption = option;
+                          });
+                        }
+                      },
+                    ),
+                  )),
+                  
+                  Spacer(),
+                  
+                  // Кнопки управления
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      if (!isChecked)
+                        ElevatedButton(
+                          onPressed: selectedOption.isEmpty ? null : _checkAnswer,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            disabledBackgroundColor: Theme.of(context).disabledColor,
+                            disabledForegroundColor: isDarkMode ? Colors.grey[400] : Colors.grey[700],
+                          ),
+                          child: Text('check'.tr(context)),
+                        )
+                      else
+                        ElevatedButton(
+                          onPressed: _generateExercise,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
+                          child: Text('next'.tr(context)),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
+    );
+  }
+}
+
+class OptionButton extends StatelessWidget {
+  final String text;
+  final bool isSelected;
+  final bool isCorrect;
+  final bool isWrong;
+  final VoidCallback onTap;
+
+  const OptionButton({
+    Key? key,
+    required this.text,
+    this.isSelected = false,
+    this.isCorrect = false,
+    this.isWrong = false,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // Определяем цвета в зависимости от состояния
+    Color backgroundColor;
+    Color textColor;
+    Color borderColor;
+    
+    if (isCorrect) {
+      backgroundColor = Colors.green.shade100;
+      textColor = Colors.green.shade800;
+      borderColor = Colors.green.shade500;
+    } else if (isWrong) {
+      backgroundColor = Colors.red.shade100;
+      textColor = Colors.red.shade800;
+      borderColor = Colors.red.shade500;
+    } else if (isSelected) {
+      backgroundColor = Theme.of(context).primaryColor.withOpacity(0.2);
+      textColor = isDarkMode ? Colors.white : Theme.of(context).primaryColor;
+      borderColor = Theme.of(context).primaryColor;
+    } else {
+      backgroundColor = isDarkMode ? Theme.of(context).cardColor : Colors.white;
+      textColor = isDarkMode ? Colors.white : Colors.black;
+      borderColor = Colors.grey.shade300;
+    }
+    
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: borderColor,
           ),
         ),
-        
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: _currentIndex > 0 ? () {
-                  setState(() {
-                    _currentIndex--;
-                  });
-                } : null,
-                child: Text('← Назад'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _showResults ? Colors.orange : Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                onPressed: () {
-                  setState(() {
-                    _showResults = !_showResults;
-                  });
-                },
-                child: Text(
-                  _showResults ? 'Новые предложения' : 'Проверить',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              TextButton(
-                onPressed: _currentIndex < _sentences.length - 1 ? () {
-                  setState(() {
-                    _currentIndex++;
-                  });
-                } : null,
-                child: Text('Вперед →'),
-              ),
-            ],
+        child: Text(
+          text,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: isSelected || isCorrect || isWrong ? FontWeight.bold : FontWeight.normal,
+            fontSize: 18,
           ),
+          textAlign: TextAlign.center,
         ),
-      ],
+      ),
     );
   }
 } 

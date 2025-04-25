@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/translation_service.dart';
+import '../localization/app_localizations.dart';
 import 'dart:async';
 
 
@@ -54,11 +55,11 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       setState(() {
         _pinyinController.text = result['pinyin']!;
         _translationController.text = result['translation']!;
-        _suggestionMessage = "Предложен перевод (можно изменить)";
+        _suggestionMessage = 'suggested_translation'.tr(context);
       });
     } catch (e) {
       setState(() {
-        _suggestionMessage = "Ошибка при загрузке перевода";
+        _suggestionMessage = 'translation_error'.tr(context);
       });
     }
   }
@@ -72,7 +73,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
     if (hanzi.isEmpty || translation.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Поля "Иероглиф" и "Перевод" обязательны для заполнения'),
+          content: Text('required_fields_error'.tr(context)),
           backgroundColor: Colors.red,
         ),
       );
@@ -98,34 +99,59 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      appBar: AppBar(title: Text("Добавить/Изменить карточку")),
+      appBar: AppBar(title: Text('edit_flashcard'.tr(context))),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: _hanziController,
-              decoration: InputDecoration(labelText: "Иероглиф"),
+              decoration: InputDecoration(
+                labelText: 'hanzi'.tr(context),
+                labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
+                border: OutlineInputBorder(),
+              ),
               onChanged: _onHanziChanged,
             ),
+            SizedBox(height: 16),
             TextField(
               controller: _pinyinController,
-              decoration: InputDecoration(labelText: "Пиньинь"),
+              decoration: InputDecoration(
+                labelText: 'pinyin'.tr(context),
+                labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
+                border: OutlineInputBorder(),
+              ),
             ),
+            SizedBox(height: 16),
             TextField(
               controller: _translationController,
-              decoration: InputDecoration(labelText: "Перевод"),
+              decoration: InputDecoration(
+                labelText: 'translation'.tr(context),
+                labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
+                border: OutlineInputBorder(),
+              ),
             ),
             if (_suggestionMessage != null)
-              Text(
-                _suggestionMessage!,
-                style: TextStyle(color: Colors.grey),
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  _suggestionMessage!,
+                  style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]),
+                ),
               ),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
             ElevatedButton(
               onPressed: _saveOrUpdateFlashcard,
-              child: Text("Сохранить"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text('save'.tr(context)),
             ),
           ],
         ),

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../widgets/flashcard_widget.dart';
 import '../models/flashcard.dart';
 import '../models/flashcard_pack.dart';
+import '../localization/app_localizations.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
+import '../screens/settings_screen.dart';
 import '../services/storage_service.dart';
 import '../services/translation_service.dart';
 import 'dart:async';
@@ -21,6 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int currentCardIndex = 0;
   bool _isFlipped = false;
   bool _packsExpanded = false;
+  bool _showDueCardsOnly = false;
+  List<Flashcard> _dueCards = [];
 
   @override
   void initState() {
@@ -32,11 +36,27 @@ class _HomeScreenState extends State<HomeScreen> {
     List<FlashcardPack> loadedPacks = await StorageService.loadFlashcardPacks();
     setState(() {
       flashcardPacks = loadedPacks;
+      _updateDueCards();
     });
+  }
+
+  void _updateDueCards() {
+    _dueCards = [];
+    for (var pack in flashcardPacks) {
+      for (var card in pack.cards) {
+        if (card.needsReview) {
+          _dueCards.add(card);
+        }
+      }
+    }
+    
+    // Sort due cards by repetition level (lower levels first)
+    _dueCards.sort((a, b) => a.repetitionLevel.compareTo(b.repetitionLevel));
   }
 
   void _saveFlashcardPacks() async {
     await StorageService.saveFlashcardPacks(flashcardPacks);
+    _updateDueCards();
   }
 
   void _deletePack(int index) {
@@ -45,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (currentPackIndex >= flashcardPacks.length) {
         currentPackIndex = flashcardPacks.isEmpty ? 0 : flashcardPacks.length - 1;
       }
+      _updateDueCards();
     });
     _saveFlashcardPacks();
   }
@@ -86,19 +107,19 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Создать новый пак'),
+          title: Text('create_new_pack'.tr(context)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: InputDecoration(hintText: 'Введите название пака'),
+                decoration: InputDecoration(hintText: 'enter_pack_name'.tr(context)),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: bulkCardsController,
                 decoration: InputDecoration(
-                  hintText: 'Введите иероглифы (по одному в строке)',
+                  hintText: 'enter_characters'.tr(context),
                 ),
                 maxLines: 5,
               ),
@@ -107,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Отмена'),
+              child: Text('cancel'.tr(context)),
             ),
             TextButton(
               onPressed: () async {
@@ -120,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 }
               },
-              child: Text('Создать'),
+              child: Text('create'.tr(context)),
             ),
           ],
         );
@@ -131,24 +152,93 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         flashcardPacks.add(FlashcardPack(name: newPackData['name'], cards: newPackData['cards']));
         currentPackIndex = flashcardPacks.length - 1;
+        _updateDueCards();
       });
       _saveFlashcardPacks();
     }
   }
 
   void _nextCard() {
-    if (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty) return;
-    setState(() {
-      currentCardIndex = (currentCardIndex + 1) % flashcardPacks[currentPackIndex].cards.length;
-      _isFlipped = false; // Сбрасываем состояние переворота
-    });
+    if (_showDueCardsOnly) {
+      // When showing only due cards
+      if (_dueCards.isEmpty) return;
+      
+      // Move to next due card
+      setState(() {
+        currentCardIndex = (currentCardIndex + 1) % _dueCards.length;
+        _isFlipped = false;
+      });
+    } else {
+      // When showing all cards in current pack
+      if (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty) return;
+      setState(() {
+        currentCardIndex = (currentCardIndex + 1) % flashcardPacks[currentPackIndex].cards.length;
+        _isFlipped = false;
+      });
+    }
+  }
+
+  void _markCardReviewed(bool wasCorrect) {
+    if (_showDueCardsOnly && _dueCards.isNotEmpty) {
+      // Update the current due card
+      Flashcard card = _dueCards[currentCardIndex];
+      card.updateNextReviewDate(wasCorrect: wasCorrect);
+      _saveFlashcardPacks();
+      
+      // If there are no more cards after update, switch to normal view
+      setState(() {
+        _updateDueCards();
+        if (_dueCards.isEmpty) {
+          _showDueCardsOnly = false;
+        } else if (currentCardIndex >= _dueCards.length) {
+          currentCardIndex = 0;
+        }
+        _isFlipped = false;
+      });
+    } else if (!_showDueCardsOnly && flashcardPacks.isNotEmpty && flashcardPacks[currentPackIndex].cards.isNotEmpty) {
+      // Update current card in normal view
+      Flashcard card = flashcardPacks[currentPackIndex].cards[currentCardIndex];
+      card.updateNextReviewDate(wasCorrect: wasCorrect);
+      _saveFlashcardPacks();
+      _nextCard();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Determine which card to show based on view mode
+    Flashcard? currentCard;
+    if (_showDueCardsOnly) {
+      currentCard = _dueCards.isNotEmpty ? _dueCards[currentCardIndex] : null;
+    } else {
+      currentCard = flashcardPacks.isNotEmpty && flashcardPacks[currentPackIndex].cards.isNotEmpty 
+          ? flashcardPacks[currentPackIndex].cards[currentCardIndex] 
+          : null;
+    }
+    
     return Scaffold(
       appBar: AppBar(
-        title: Text('Изучение китайского'),
+        title: Text('app_title'.tr(context)),
+        actions: [
+          // Show badge with number of due cards
+          _dueCards.isNotEmpty 
+              ? Badge(
+                  label: Text(_dueCards.length.toString()),
+                  child: IconButton(
+                    icon: Icon(Icons.notifications),
+                    onPressed: () {
+                      setState(() {
+                        _showDueCardsOnly = !_showDueCardsOnly;
+                        currentCardIndex = 0;
+                        _isFlipped = false;
+                      });
+                    },
+                  ),
+                )
+              : SizedBox.shrink(),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -156,10 +246,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: <Widget>[
             DrawerHeader(
               decoration: BoxDecoration(
-                color: Colors.blue,
+                color: Theme.of(context).primaryColor,
               ),
               child: Text(
-                'Меню',
+                'app_title'.tr(context),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -168,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: Icon(Icons.edit),
-              title: Text('Заполнить пропуски'),
+              title: Text('exercises'.tr(context)),
               onTap: () {
                 developer.log('HomeScreen: Нажатие на пункт "Заполнить пропуски"', name: 'home_screen');
                 
@@ -183,6 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       
                       return FillBlanksScreen(
                         currentPack: currentPack,
+                        isDarkMode: isDark,
                       );
                     }
                   )
@@ -191,51 +282,78 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: Icon(Icons.book),
-              title: Text('Карточки'),
+              title: Text('flashcards'.tr(context)),
               onTap: () {
                 Navigator.pop(context); // Просто закрываем боковое меню
               },
             ),
             ListTile(
-              title: const Text('Редактировать карточки'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FlashcardEditorScreen(
-                    onSave: (hanzi, pinyin, translation) {
-                      setState(() {
-                        flashcardPacks[currentPackIndex].cards.add(
-                          Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation),
-                        );
-                      });
-                      _saveFlashcardPacks();
-                    },
-                    onUpdate: (hanzi, pinyin, translation) {
-                      final index = flashcardPacks[currentPackIndex].cards.indexWhere((card) => card.hanzi == hanzi);
-                      if (index != -1) {
-                        setState(() {
-                          flashcardPacks[currentPackIndex].cards[index] = Flashcard(
-                            hanzi: hanzi,
-                            pinyin: pinyin,
-                            translation: translation,
-                          );
-                        });
-                        _saveFlashcardPacks();
-                      }
-                    },
-                    existingCards: flashcardPacks[currentPackIndex].cards.map((card) => card.toJson()).toList(),
+              leading: Icon(Icons.edit_note),
+              title: Text('edit_cards'.tr(context)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FlashcardEditorScreen(
+                      onSave: (hanzi, pinyin, translation) {
+                        if (flashcardPacks.isNotEmpty) {
+                          setState(() {
+                            flashcardPacks[currentPackIndex].cards.add(
+                              Flashcard(hanzi: hanzi, pinyin: pinyin, translation: translation),
+                            );
+                          });
+                          _saveFlashcardPacks();
+                        }
+                      },
+                      onUpdate: (hanzi, pinyin, translation) {
+                        if (flashcardPacks.isNotEmpty) {
+                          final index = flashcardPacks[currentPackIndex].cards.indexWhere((card) => card.hanzi == hanzi);
+                          if (index != -1) {
+                            setState(() {
+                              flashcardPacks[currentPackIndex].cards[index] = Flashcard(
+                                hanzi: hanzi,
+                                pinyin: pinyin,
+                                translation: translation,
+                              );
+                            });
+                            _saveFlashcardPacks();
+                          }
+                        }
+                      },
+                      existingCards: flashcardPacks.isNotEmpty 
+                          ? flashcardPacks[currentPackIndex].cards.map((card) => card.toJson()).toList()
+                          : [],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
             ListTile(
-              title: const Text('Играть'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FlashcardGameScreen(flashcards: flashcardPacks[currentPackIndex].cards),
-                ),
-              ),
+              leading: Icon(Icons.games),
+              title: Text('memory_game'.tr(context)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FlashcardGameScreen(flashcards: flashcardPacks.isNotEmpty 
+                      ? flashcardPacks[currentPackIndex].cards
+                      : []),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.settings),
+              title: Text('settings'.tr(context)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SettingsScreen()),
+                );
+              },
             ),
           ],
         ),
@@ -246,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Text(
-                  'Добро пожаловать в приложение для изучения китайского языка',
+                  'welcome_message'.tr(context),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 18),
                 ),
@@ -258,23 +376,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 SizedBox(height: 40),
                 ElevatedButton(
                   onPressed: _createNewPack,
-                  child: Text('Создать новый пак'),
+                  child: Text('create_new_pack'.tr(context)),
                 ),
               ],
             ),
           )
         : Column(
             children: [
-              // Заголовок текущего пака
+              // Title of current view
               Container(
                 padding: EdgeInsets.all(16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '${currentPackIndex + 1}/${flashcardPacks.length}: ${flashcardPacks[currentPackIndex].name}',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    _showDueCardsOnly
+                        ? Text(
+                            '${('cards_to_review').tr(context)} ${currentCardIndex + 1}/${_dueCards.length}',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          )
+                        : Text(
+                            '${currentPackIndex + 1}/${flashcardPacks.length}: ${flashcardPacks[currentPackIndex].name}',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
                     IconButton(
                       icon: Icon(_packsExpanded ? Icons.arrow_drop_up : Icons.arrow_drop_down),
                       onPressed: () {
@@ -287,8 +410,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               
-              // Список паков (отображается, если раскрыт)
-              if (_packsExpanded)
+              // List of packs (shown if expanded)
+              if (_packsExpanded && !_showDueCardsOnly)
                 Container(
                   height: 200,
                   child: ListView.builder(
@@ -307,36 +430,84 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 
-              // Карточки
+              // Flashcard
               Expanded(
-                child: flashcardPacks[currentPackIndex].cards.isEmpty
+                child: (_showDueCardsOnly && _dueCards.isEmpty) || 
+                       (!_showDueCardsOnly && flashcardPacks[currentPackIndex].cards.isEmpty)
                   ? Center(
-                      child: Text('В этом паке нет карточек'),
+                      child: Text(_showDueCardsOnly 
+                        ? 'No cards to review!' 
+                        : 'no_cards_in_pack'.tr(context)),
                     )
-                  : FlashcardWidget(
-                      flashcard: flashcardPacks[currentPackIndex].cards[currentCardIndex],
-                      isFlipped: _isFlipped,
-                      onFlip: () {
-                        setState(() {
-                          _isFlipped = !_isFlipped;
-                        });
-                      },
-                    ),
+                  : currentCard != null 
+                    ? FlashcardWidget(
+                        flashcard: currentCard,
+                        isFlipped: _isFlipped,
+                        onFlip: () {
+                          setState(() {
+                            _isFlipped = !_isFlipped;
+                          });
+                        },
+                      )
+                    : Center(
+                        child: Text('No card to display'),
+                      ),
               ),
               
-              // Кнопки управления
+              // SRS info for current card
+              if (currentCard != null)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    'SRS Level: ${currentCard.repetitionLevel}/5, Next review: ${currentCard.nextReviewDate?.toString().substring(0, 10) ?? 'New'}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              
+              // Control buttons
               Container(
                 padding: EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                child: Column(
                   children: [
-                    ElevatedButton(
-                      onPressed: _createNewPack,
-                      child: Text('Новый пак'),
-                    ),
-                    ElevatedButton(
-                      onPressed: flashcardPacks[currentPackIndex].cards.isEmpty ? null : _nextCard,
-                      child: Text('Следующая'),
+                    if (_isFlipped && currentCard != null)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () => _markCardReviewed(false),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.red : Colors.red.shade200,
+                              foregroundColor: isDark ? Colors.white : Colors.red.shade900,
+                            ),
+                            child: Text('again_button'.tr(context)),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => _markCardReviewed(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.green : Colors.green.shade200,
+                              foregroundColor: isDark ? Colors.white : Colors.green.shade900,
+                            ),
+                            child: Text('good_button'.tr(context)),
+                          ),
+                        ],
+                      ),
+                    SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        if (!_showDueCardsOnly)
+                          ElevatedButton(
+                            onPressed: _createNewPack,
+                            child: Text('new_pack'.tr(context)),
+                          ),
+                        ElevatedButton(
+                          onPressed: (_showDueCardsOnly && _dueCards.isEmpty) || 
+                                     (!_showDueCardsOnly && (flashcardPacks.isEmpty || flashcardPacks[currentPackIndex].cards.isEmpty)) 
+                              ? null 
+                              : _nextCard,
+                          child: Text('next_card'.tr(context)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
