@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/flashcard_pack.dart';
 import '../models/flashcard.dart';
 import '../localization/app_localizations.dart';
+import '../services/model_service_provider.dart';
 import 'dart:developer' as developer;
 
 class FillBlanksScreen extends StatefulWidget {
@@ -27,16 +28,102 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
   bool isChecked = false;
   String selectedOption = '';
   Flashcard? currentFlashcard;
+  
+  // Track if model is initialized
+  bool _isModelInitialized = false;
+  bool _isLoading = true;
+  
+  // List of generated exercises
+  List<Map<String, String>> _exercises = [];
+  int _currentExerciseIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _generateExercise();
+    _initializeModel();
+  }
+  
+  Future<void> _initializeModel() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    // Initialize the model service
+    _isModelInitialized = await ModelServiceProvider.initialize();
+    
+    if (_isModelInitialized) {
+      developer.log('FillBlanksScreen: Model initialized successfully', name: 'fill_blanks_screen');
+      developer.log('FillBlanksScreen: Using ${ModelServiceProvider.getCurrentImplementation()} implementation', name: 'fill_blanks_screen');
+      await _generateExerciseBatch();
+    } else {
+      developer.log('FillBlanksScreen: Failed to initialize model', name: 'fill_blanks_screen');
+      // Fallback to old method if model initialization fails
+      _generateExercise();
+    }
+    
+    setState(() {
+      _isLoading = false;
+    });
+  }
+  
+  Future<void> _generateExerciseBatch() async {
+    if (widget.currentPack == null || widget.currentPack!.cards.isEmpty) {
+      developer.log('FillBlanksScreen: Current pack is empty or null', name: 'fill_blanks_screen');
+      return;
+    }
+    
+    try {
+      // Generate a batch of exercises (5 at a time)
+      _exercises = await ModelServiceProvider.generateExerciseBatch(
+        widget.currentPack!.cards, 
+        5
+      );
+      
+      if (_exercises.isNotEmpty) {
+        _currentExerciseIndex = 0;
+        _loadCurrentExercise();
+      } else {
+        // Fallback to old method if no exercises generated
+        _generateExercise();
+      }
+    } catch (e) {
+      developer.log('FillBlanksScreen: Error generating exercise batch: $e', name: 'fill_blanks_screen');
+      // Fallback to old method if error
+      _generateExercise();
+    }
+  }
+  
+  void _loadCurrentExercise() {
+    if (_exercises.isEmpty || _currentExerciseIndex >= _exercises.length) {
+      _generateExercise(); // Fallback to old method
+      return;
+    }
+    
+    final exercise = _exercises[_currentExerciseIndex];
+    
+    // Find the card that matches this exercise
+    final targetHanzi = exercise['answer'] ?? '';
+    currentFlashcard = widget.currentPack!.cards.firstWhere(
+      (card) => card.hanzi == targetHanzi,
+      orElse: () => widget.currentPack!.cards.first,
+    );
+    
+    // Set up the current exercise
+    currentSentence = exercise['sentence'];
+    hiddenWord = exercise['answer'];
+    
+    // Generate options (correct answer + random distractors)
+    _generateOptions(currentFlashcard!);
+    
+    setState(() {
+      isChecked = false;
+      selectedOption = '';
+    });
   }
 
   void _generateExercise() {
     if (widget.currentPack == null || widget.currentPack!.cards.isEmpty) {
-      developer.log('FillBlanksScreen: Текущий пак пуст или null', name: 'fill_blanks_screen');
+      developer.log('FillBlanksScreen: Current pack is empty or null', name: 'fill_blanks_screen');
       return;
     }
 
@@ -74,30 +161,52 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
     final hanzi = randomCard.hanzi;
     hiddenWord = hanzi;
     
-    // Simple sentence template
-    currentSentence = "这是 ____ 。";
-    
-    // Generate options
-    options = [hanzi];
-    
-    // Add more options from other cards
-    while (options.length < 4 && options.length < cards.length) {
-      final otherCard = cards[random.nextInt(cards.length)];
-      if (otherCard.hanzi != hanzi && !options.contains(otherCard.hanzi)) {
-        options.add(otherCard.hanzi);
-      }
+    // If model is initialized, use it to generate a sentence
+    if (_isModelInitialized) {
+      ModelServiceProvider.generateSentenceWithBlank(randomCard).then((generatedSentence) {
+        setState(() {
+          currentSentence = generatedSentence;
+        });
+      }).catchError((e) {
+        // Fallback to simple template if error
+        setState(() {
+          currentSentence = "这是 ____ 。";
+        });
+      });
+    } else {
+      // Fallback to simple template if model not initialized
+      currentSentence = "这是 ____ 。";
     }
     
-    // Shuffle options
-    options.shuffle();
+    // Generate options
+    _generateOptions(randomCard);
     
     setState(() {
       isChecked = false;
       selectedOption = '';
     });
     
-    developer.log('FillBlanksScreen: Сгенерировано упражнение: $currentSentence, правильный ответ: $hiddenWord', 
+    developer.log('FillBlanksScreen: Generated exercise: $currentSentence, correct answer: $hiddenWord', 
         name: 'fill_blanks_screen');
+  }
+  
+  void _generateOptions(Flashcard card) {
+    final random = math.Random();
+    final List<Flashcard> cards = widget.currentPack!.cards;
+    
+    // Start with the correct answer
+    options = [card.hanzi];
+    
+    // Add more options from other cards
+    while (options.length < 4 && options.length < cards.length) {
+      final otherCard = cards[random.nextInt(cards.length)];
+      if (otherCard.hanzi != card.hanzi && !options.contains(otherCard.hanzi)) {
+        options.add(otherCard.hanzi);
+      }
+    }
+    
+    // Shuffle options
+    options.shuffle();
   }
 
   void _checkAnswer() {
@@ -113,10 +222,26 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       isCorrect = isAnswerCorrect;
     });
   }
+  
+  void _nextExercise() {
+    if (_isModelInitialized && _exercises.isNotEmpty) {
+      // Move to next exercise in batch
+      _currentExerciseIndex++;
+      
+      // If we've gone through all exercises, generate a new batch
+      if (_currentExerciseIndex >= _exercises.length) {
+        _generateExerciseBatch();
+      } else {
+        _loadCurrentExercise();
+      }
+    } else {
+      // Fall back to old method
+      _generateExercise();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Всегда используем черный текст для отладочного бокса
     final debugTextColor = Colors.black;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
@@ -124,7 +249,18 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       appBar: AppBar(
         title: Text('fill_blanks'.tr(context)),
       ),
-      body: widget.currentPack == null || widget.currentPack!.cards.isEmpty
+      body: _isLoading
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Initializing...'),
+              ],
+            ),
+          )
+        : widget.currentPack == null || widget.currentPack!.cards.isEmpty
           ? Center(
               child: Text('no_cards_available'.tr(context)),
             )
@@ -133,7 +269,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Отладочная информация
+                  // Debug information
                   Container(
                     padding: EdgeInsets.all(8),
                     margin: EdgeInsets.only(bottom: 16),
@@ -164,7 +300,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
                       ),
                     ),
                   
-                  // Предложение с пропуском
+                  // Sentence with blank
                   Container(
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -187,7 +323,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
                   
                   SizedBox(height: 32),
                   
-                  // Варианты ответов
+                  // Options
                   ...options.map((option) => Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: OptionButton(
@@ -207,7 +343,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
                   
                   Spacer(),
                   
-                  // Кнопки управления
+                  // Control buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -225,7 +361,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
                         )
                       else
                         ElevatedButton(
-                          onPressed: _generateExercise,
+                          onPressed: _nextExercise,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(context).colorScheme.primary,
                             foregroundColor: Colors.white,
@@ -262,7 +398,7 @@ class OptionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
-    // Определяем цвета в зависимости от состояния
+    // Define colors based on state
     Color backgroundColor;
     Color textColor;
     Color borderColor;

@@ -6,8 +6,10 @@ import '../localization/app_localizations.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/tflite_test_screen.dart';
 import '../services/storage_service.dart';
 import '../services/translation_service.dart';
+import '../models/settings_model.dart';
 import 'dart:async';
 import 'fill_blanks_screen.dart';
 import 'dart:developer' as developer;
@@ -80,9 +82,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<List<Flashcard>> _fetchBulkTranslations(List<String> hanziList) async {
     List<Flashcard> flashcards = [];
+    
+    // Get current app language from context
+    final scaffoldContext = ScaffoldMessenger.of(context).context;
+    final appLanguage = Localizations.localeOf(scaffoldContext).languageCode == 'ru' 
+        ? AppLanguage.russian 
+        : AppLanguage.english;
+    
     for (var hanzi in hanziList) {
       try {
-        final result = await TranslationService.translate(hanzi);
+        final result = await TranslationService.translate(
+          hanzi.trim(), 
+          targetLanguage: appLanguage,
+        );
+        
         flashcards.add(Flashcard(
           hanzi: hanzi.trim(),
           pinyin: result['pinyin'] ?? '',
@@ -92,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
         flashcards.add(Flashcard(
           hanzi: hanzi.trim(),
           pinyin: '',
-          translation: 'Ошибка перевода',
+          translation: appLanguage == AppLanguage.russian ? 'Ошибка перевода' : 'Translation error',
         ));
       }
     }
@@ -102,48 +115,78 @@ class _HomeScreenState extends State<HomeScreen> {
   void _createNewPack() async {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController bulkCardsController = TextEditingController();
+    bool isTranslating = false;
 
     final newPackData = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('create_new_pack'.tr(context)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(hintText: 'enter_pack_name'.tr(context)),
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('create_new_pack'.tr(context)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(hintText: 'enter_pack_name'.tr(context)),
+                  ),
+                  SizedBox(height: 10),
+                  TextField(
+                    controller: bulkCardsController,
+                    decoration: InputDecoration(
+                      hintText: 'enter_characters'.tr(context),
+                    ),
+                    maxLines: 5,
+                  ),
+                  if (isTranslating)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Translating...'),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(height: 10),
-              TextField(
-                controller: bulkCardsController,
-                decoration: InputDecoration(
-                  hintText: 'enter_characters'.tr(context),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('cancel'.tr(context)),
                 ),
-                maxLines: 5,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('cancel'.tr(context)),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (nameController.text.trim().isNotEmpty) {
-                  List<String> hanziList = bulkCardsController.text.trim().split('\n');
-                  List<Flashcard> newCards = await _fetchBulkTranslations(hanziList);
-                  Navigator.pop(context, {
-                    'name': nameController.text.trim(),
-                    'cards': newCards,
-                  });
-                }
-              },
-              child: Text('create'.tr(context)),
-            ),
-          ],
+                TextButton(
+                  onPressed: isTranslating ? null : () async {
+                    if (nameController.text.trim().isNotEmpty) {
+                      setState(() {
+                        isTranslating = true;
+                      });
+                      
+                      List<String> hanziList = bulkCardsController.text
+                          .trim()
+                          .split('\n')
+                          .where((s) => s.trim().isNotEmpty)
+                          .toList();
+                      
+                      List<Flashcard> newCards = await _fetchBulkTranslations(hanziList);
+                      
+                      Navigator.pop(dialogContext, {
+                        'name': nameController.text.trim(),
+                        'cards': newCards,
+                      });
+                    }
+                  },
+                  child: Text('create'.tr(context)),
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -218,10 +261,26 @@ class _HomeScreenState extends State<HomeScreen> {
           : null;
     }
     
+    // Проверяем, есть ли карточки для отображения
+    bool hasCards = _showDueCardsOnly 
+        ? _dueCards.isNotEmpty 
+        : (flashcardPacks.isNotEmpty && flashcardPacks[currentPackIndex].cards.isNotEmpty);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('app_title'.tr(context)),
         actions: [
+          // Добавим кнопку для тестирования TFLite
+          IconButton(
+            icon: const Icon(Icons.science),
+            tooltip: 'Test TFLite',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TFLiteTestScreen()),
+              );
+            },
+          ),
           // Show badge with number of due cards
           _dueCards.isNotEmpty 
               ? Badge(
@@ -238,6 +297,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )
               : SizedBox.shrink(),
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
+            },
+          ),
         ],
       ),
       drawer: Drawer(

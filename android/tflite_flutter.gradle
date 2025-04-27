@@ -1,16 +1,30 @@
-def scriptFile = project.buildscript.sourceFile
-def flutterRoot = scriptFile.getParentFile().getParentFile()
+// This script is used by the tflite_flutter plugin to configure TFLite settings
 
-gradle.include ':tflite_flutter'
-gradle.project(':tflite_flutter').projectDir = new File(flutterRoot, 'packages/tflite_flutter/android')
+// Indicate which TFLite build flavor to use
+def USE_NIGHTLY_TFLITE = false
+def NIGHTLY_RELEASE_DATE = "20220329"
 
-project(':tflite_flutter').buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
+// TFLite runtimes - select one of these:
+def SELECTED_RUNTIME = "full" // Other options: "minimal", "full", "gpu", "xnnpack" or "all"
+
+// When using full build:
+def USE_FLEX_OP = true
+def USE_SELECT_TFOPS = true
+
+// When using GPU:
+def USE_GPU = true
+def GPU_DELEGATION_USAGE = "gpu_delegation"
+
+if (USE_NIGHTLY_TFLITE) {
+    // Set up nightly builds, if required
+    def tfliteNightlyBuildRepo = "https://tfci.jfrog.io/artifactory/tensorflow-nightly-public/org/tensorflow/tensorflow-lite-"
+    def tfliteSuffixNightly = "-nightly-SNAPSHOT"
 }
 
-project(':tflite_flutter').android {
-    namespace "com.example.tflite_flutter"
-} 
+// Shared function to set TFLite dependencies
+project.ext.configTFLite = { ->
+    println "Configuring TFLite dependencies in tflite_flutter.gradle"
+}
+
+// Apply the config when script is loaded
+configTFLite() 
