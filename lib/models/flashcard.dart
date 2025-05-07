@@ -1,76 +1,72 @@
 class Flashcard {
-  final String hanzi;
-  final String pinyin;
-  final String translation;
-  
-  // Spaced repetition system fields
-  DateTime? lastReviewed;
-  int repetitionLevel; // 0-5, where 0 = new card, 5 = well known
+  String hanzi;
+  String pinyin;
+  String translation;
+  DateTime lastReviewed;
+  int repetitionLevel;
+  bool needsReview;
   DateTime? nextReviewDate;
 
   Flashcard({
     required this.hanzi,
     required this.pinyin,
     required this.translation,
-    this.lastReviewed,
+    DateTime? lastReviewed,
     this.repetitionLevel = 0,
+    this.needsReview = true,
     this.nextReviewDate,
-  });
+  }) : lastReviewed = lastReviewed ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
       'hanzi': hanzi,
       'pinyin': pinyin,
       'translation': translation,
-      'lastReviewed': lastReviewed?.toIso8601String(),
+      'lastReviewed': lastReviewed.toIso8601String(),
       'repetitionLevel': repetitionLevel,
+      'needsReview': needsReview,
       'nextReviewDate': nextReviewDate?.toIso8601String(),
     };
   }
 
   factory Flashcard.fromJson(Map<String, dynamic> json) {
     return Flashcard(
-      hanzi: json['hanzi'] as String,
-      pinyin: json['pinyin'] as String,
-      translation: json['translation'] as String,
-      lastReviewed: json['lastReviewed'] != null ? DateTime.parse(json['lastReviewed'] as String) : null,
-      repetitionLevel: json['repetitionLevel'] as int? ?? 0,
-      nextReviewDate: json['nextReviewDate'] != null ? DateTime.parse(json['nextReviewDate'] as String) : null,
+      hanzi: json['hanzi'] ?? '',
+      pinyin: json['pinyin'] ?? '',
+      translation: json['translation'] ?? '',
+      lastReviewed: json['lastReviewed'] != null
+          ? DateTime.parse(json['lastReviewed'])
+          : null,
+      repetitionLevel: json['repetitionLevel'] ?? 0,
+      needsReview: json['needsReview'] ?? true,
+      nextReviewDate: json['nextReviewDate'] != null
+          ? DateTime.parse(json['nextReviewDate'])
+          : null,
     );
   }
-  
-  // Calculate next review date based on repetition level
-  void updateNextReviewDate({bool wasCorrect = true}) {
+
+  // Simplified spaced repetition algorithm
+  void updateNextReviewDate({required bool wasCorrect}) {
     lastReviewed = DateTime.now();
     
-    // If correct answer, increase repetition level (max 5)
-    if (wasCorrect && repetitionLevel < 5) {
+    if (wasCorrect) {
       repetitionLevel++;
-    } 
-    // If incorrect, decrease repetition level (min 0)
-    else if (!wasCorrect && repetitionLevel > 0) {
-      repetitionLevel--;
+    } else {
+      repetitionLevel = repetitionLevel > 0 ? repetitionLevel - 1 : 0;
     }
     
-    // Calculate days until next review based on repetition level
-    int daysUntilNextReview;
-    switch (repetitionLevel) {
-      case 0: daysUntilNextReview = 1; break;  // New card - review tomorrow
-      case 1: daysUntilNextReview = 2; break;  // Review in 2 days
-      case 2: daysUntilNextReview = 4; break;  // Review in 4 days
-      case 3: daysUntilNextReview = 7; break;  // Review in 1 week
-      case 4: daysUntilNextReview = 14; break; // Review in 2 weeks
-      case 5: daysUntilNextReview = 30; break; // Review in 1 month
-      default: daysUntilNextReview = 1;
+    // Calculate next review date based on repetition level
+    if (repetitionLevel == 0) {
+      // If level is 0, needs review immediately
+      needsReview = true;
+      nextReviewDate = DateTime.now();
+    } else {
+      // Exponential spacing: 1 day, 3 days, 7 days, 14 days, 30 days, 60 days, etc.
+      int daysToAdd = repetitionLevel == 1 ? 1 : (1 << (repetitionLevel - 1));
+      if (daysToAdd > 60) daysToAdd = 60; // Cap at 60 days
+      
+      nextReviewDate = DateTime.now().add(Duration(days: daysToAdd));
+      needsReview = false;
     }
-    
-    nextReviewDate = DateTime.now().add(Duration(days: daysUntilNextReview));
-  }
-  
-  // Check if card needs to be reviewed today
-  bool get needsReview {
-    if (nextReviewDate == null) return true; // New card
-    final now = DateTime.now();
-    return now.isAfter(nextReviewDate!);
   }
 } 

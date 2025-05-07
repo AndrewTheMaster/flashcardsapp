@@ -125,3 +125,79 @@ Desktop.ini
 # Linux specific
 .directory
 .Trash-*
+
+# Miscellaneous
+*.class
+*.pyc
+*.swp
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/android/build/
+/android/app/build/
+/ios/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Model files - since they're large and can be recreated or downloaded
+*.tflite
+*.bin
+*.model
+*.pb
+*.onnx
+
+# Compiled outputs
+**/*.dill
+**/*.dill.track.dill
+*.apk
+*.ap_
+*.aab
+
+# Temp files
+/temp/
+**/tmp/
+
+# Cache files
+.gradle/
+**/intermediates/
+
+# Generated files by BERT or other ML models
+**/vocab.txt
+**/assets/models/
+**/bert_assets/
+
+# Log files
+*.log

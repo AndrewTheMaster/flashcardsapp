@@ -28,6 +28,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled true // Enable MultiDex support
     }
 
     buildTypes {
@@ -41,4 +42,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22" // Using hardcoded version
+    implementation 'androidx.multidex:multidex:2.0.1' // Add MultiDex dependency
 }

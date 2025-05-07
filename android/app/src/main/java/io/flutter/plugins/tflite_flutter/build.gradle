@@ -1,0 +1,3 @@
+android {
+    namespace "com.tfliteflutter.tflite_flutter_plugin"
+} 

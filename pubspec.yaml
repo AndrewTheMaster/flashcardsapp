@@ -38,6 +38,7 @@ dependencies:
   shared_preferences: ^2.2.0
   http: ^1.1.0
   provider: ^6.0.5
+  dio: ^5.8.0 # Add Dio package for HTTP requests
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

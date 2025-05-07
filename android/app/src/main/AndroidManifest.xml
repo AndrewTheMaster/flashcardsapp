@@ -1,7 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Add internet permission -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
     <application
         android:largeHeap="true"
-        android:name="${applicationName}"
+        android:name=".FlashcardsApplication"
         android:label="Chinese Flashcards"
         android:icon="@mipmap/ic_launcher">
         <activity

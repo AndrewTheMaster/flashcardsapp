@@ -1,27 +1,36 @@
 import 'flashcard.dart';
 
 class FlashcardPack {
-  final String name;
-  final List<Flashcard> cards;
+  String name;
+  List<Flashcard> cards;
+  DateTime dateCreated;
 
   FlashcardPack({
     required this.name,
     required this.cards,
-  });
+    DateTime? dateCreated,
+  }) : dateCreated = dateCreated ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
       'name': name,
       'cards': cards.map((card) => card.toJson()).toList(),
+      'dateCreated': dateCreated.toIso8601String(),
     };
   }
 
   factory FlashcardPack.fromJson(Map<String, dynamic> json) {
+    List<dynamic> cardsList = json['cards'] ?? [];
+    List<Flashcard> cards = cardsList
+        .map((cardJson) => Flashcard.fromJson(cardJson))
+        .toList();
+
     return FlashcardPack(
-      name: json['name'] as String,
-      cards: (json['cards'] as List)
-          .map((cardJson) => Flashcard.fromJson(cardJson as Map<String, dynamic>))
-          .toList(),
+      name: json['name'] ?? 'Unnamed Pack',
+      cards: cards,
+      dateCreated: json['dateCreated'] != null
+          ? DateTime.parse(json['dateCreated'])
+          : null,
     );
   }
 } 

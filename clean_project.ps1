@@ -1,40 +1,34 @@
-Write-Host "Cleaning Flutter project..." -ForegroundColor Green
+# Скрипт для очистки проекта перед отправкой на GitHub
 
-# Установка переменной окружения JAVA_HOME
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-Write-Host "JAVA_HOME set to: $env:JAVA_HOME" -ForegroundColor Cyan
+# Остановить скрипт при любой ошибке
+$ErrorActionPreference = "Stop"
 
-# Очистка Flutter
-Write-Host "Running flutter clean..." -ForegroundColor Yellow
-flutter clean
+Write-Host "Starting cleanup process..." -ForegroundColor Green
 
-# Удаление директорий сборки и кэша
-$dirsToRemove = @(
-    ".gradle",
-    "build",
-    ".dart_tool",
-    "android/.gradle",
-    "android/build",
-    "ios/Pods",
-    "ios/build"
-)
+# Удалить папки build в проекте
+Write-Host "Removing build directories..." -ForegroundColor Yellow
+Remove-Item -Recurse -Force -Path "build" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path "android/build" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path "android/app/build" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path "ios/build" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path ".dart_tool" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path ".gradle" -ErrorAction SilentlyContinue
 
-foreach ($dir in $dirsToRemove) {
-    if (Test-Path $dir) {
-        Write-Host "Removing $dir..." -ForegroundColor Yellow
-        Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
-    }
+# Удалить файлы моделей BERT
+Write-Host "Removing BERT models and TFLite files..." -ForegroundColor Yellow
+Get-ChildItem -Recurse -Path "." -Include "*.tflite", "*.bin", "*.model", "*.pb" | ForEach-Object {
+    Write-Host "  Removing $_" -ForegroundColor Cyan
+    Remove-Item -Force -Path $_.FullName
 }
 
-# Получение зависимостей
-Write-Host "Getting Flutter dependencies..." -ForegroundColor Yellow
-flutter pub get
+# Удалить временные файлы и кэш
+Write-Host "Removing temp files and caches..." -ForegroundColor Yellow
+Remove-Item -Recurse -Force -Path "temp" -ErrorAction SilentlyContinue
+Remove-Item -Force -Path "*.log" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force -Path "android/.gradle" -ErrorAction SilentlyContinue
 
-# Просмотр размера проекта
-$size = 0
-Get-ChildItem -Path . -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { $size += $_.Length }
-$sizeInGB = [math]::Round($size / 1GB, 2)
-$sizeInMB = [math]::Round($size / 1MB, 2)
+# Очистить проект Flutter
+Write-Host "Cleaning Flutter project..." -ForegroundColor Yellow
+flutter clean
 
-Write-Host "Project cleaned successfully!" -ForegroundColor Green
-Write-Host "Current project size: $sizeInGB GB ($sizeInMB MB)" -ForegroundColor Cyan 
+Write-Host "Cleanup completed successfully!" -ForegroundColor Green 
