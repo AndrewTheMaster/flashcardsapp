@@ -201,3 +201,6 @@ app.*.map.json
 
 # Log files
 *.log
+# Python virtual environments
+venv/
+__pycache__/
