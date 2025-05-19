@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import '../services/translation_service.dart';
 import '../localization/app_localizations.dart';
 import 'dart:async';
+import '../providers/settings_provider.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:developer' as developer;
 
 
 class FlashcardEditorScreen extends StatefulWidget {
@@ -26,6 +31,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
   final _translationController = TextEditingController();
   String? _suggestionMessage;
   Timer? _debounceTimer;
+  bool _isTranslating = false;
 
   @override
   void dispose() {
@@ -45,21 +51,133 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       _fetchTranslation();
     });
   }
+  
+  // Добавляем обработку изменений в поле перевода
+  void _onTranslationChanged(String text) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _reverseTranslate(text);
+    });
+  }
 
   Future<void> _fetchTranslation() async {
     final text = _hanziController.text.trim();
     if (text.isEmpty) return;
 
+    setState(() {
+      _isTranslating = true;
+    });
+
     try {
-      final result = await TranslationService.translate(text);
+      final result = await TranslationService.translateStatic(text);
       setState(() {
-        _pinyinController.text = result['pinyin']!;
-        _translationController.text = result['translation']!;
+        _pinyinController.text = result['pinyin'] ?? '';
+        _translationController.text = result['translation'] ?? '';
         _suggestionMessage = 'suggested_translation'.tr(context);
+        _isTranslating = false;
       });
     } catch (e) {
       setState(() {
         _suggestionMessage = 'translation_error'.tr(context);
+        _isTranslating = false;
+      });
+    }
+  }
+  
+  // Добавляем метод для обратного перевода
+  Future<void> _reverseTranslate(String text) async {
+    if (text.isEmpty) return;
+    
+    setState(() {
+      _isTranslating = true;
+    });
+    
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      final serverUrl = settingsProvider.serverAddress;
+      
+      // Если сервер не указан или режим офлайн, используем локальный словарь
+      if (serverUrl == null || serverUrl.isEmpty || settingsProvider.offlineMode) {
+        // Простой локальный словарь
+        final Map<String, Map<String, String>> dictionary = {
+          'мясо': {'hanzi': '肉', 'pinyin': 'ròu'},
+          'рис': {'hanzi': '米饭', 'pinyin': 'mǐfàn'},
+          'говядина': {'hanzi': '牛肉', 'pinyin': 'niúròu'},
+          'баранина': {'hanzi': '羊肉', 'pinyin': 'yángròu'},
+          'sheepmeat': {'hanzi': '羊肉', 'pinyin': 'yángròu'},
+          'вода': {'hanzi': '水', 'pinyin': 'shuǐ'},
+          'суп': {'hanzi': '汤', 'pinyin': 'tāng'},
+          'есть суп': {'hanzi': '喝汤', 'pinyin': 'hē tāng'},
+        };
+        
+        final lowerText = text.toLowerCase().trim();
+        if (dictionary.containsKey(lowerText)) {
+          setState(() {
+            _hanziController.text = dictionary[lowerText]!['hanzi']!;
+            _pinyinController.text = dictionary[lowerText]!['pinyin']!;
+            _suggestionMessage = 'found_in_dictionary'.tr(context);
+            _isTranslating = false;
+          });
+          return;
+        }
+        
+        // Не нашли в словаре
+        setState(() {
+          _suggestionMessage = 'no_reverse_translation'.tr(context);
+          _isTranslating = false;
+        });
+        return;
+      }
+      
+      // Запрос к серверу
+      final url = Uri.parse('$serverUrl/reverse-translate');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+        body: jsonEncode({
+          'text': text,
+          'language': 'ru'
+        }),
+      ).timeout(Duration(seconds: 10));
+      
+      // Явно декодируем ответ с UTF-8
+      final responseBody = utf8.decode(response.bodyBytes);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(responseBody);
+        
+        if (data['hanzi'] != null && data['hanzi'].toString().isNotEmpty) {
+          setState(() {
+            _hanziController.text = data['hanzi'] ?? '';
+            _pinyinController.text = data['pinyin'] ?? '';
+            _suggestionMessage = 'reverse_translation_success'.tr(context);
+            _isTranslating = false;
+          });
+          
+          developer.log(
+            'FlashcardEditor: Получен обратный перевод: "${text}" -> "${data['hanzi']}" (${data['pinyin']})',
+            name: 'flashcard_editor'
+          );
+        } else {
+          setState(() {
+            _suggestionMessage = 'no_reverse_translation'.tr(context);
+            _isTranslating = false;
+          });
+        }
+      } else {
+        setState(() {
+          _suggestionMessage = 'reverse_translation_error'.tr(context);
+          _isTranslating = false;
+        });
+      }
+    } catch (e) {
+      developer.log('FlashcardEditor: Ошибка обратного перевода: $e', name: 'flashcard_editor');
+      setState(() {
+        _suggestionMessage = 'reverse_translation_error'.tr(context);
+        _isTranslating = false;
       });
     }
   }
@@ -133,7 +251,9 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                 labelText: 'translation'.tr(context),
                 labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
                 border: OutlineInputBorder(),
+                helperText: 'Type translation to find Chinese'.tr(context),
               ),
+              onChanged: _onTranslationChanged,
             ),
             if (_suggestionMessage != null)
               Padding(
@@ -141,6 +261,17 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                 child: Text(
                   _suggestionMessage!,
                   style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]),
+                ),
+              ),
+            if (_isTranslating)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
               ),
             SizedBox(height: 24),

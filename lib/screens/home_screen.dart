@@ -6,11 +6,16 @@ import '../localization/app_localizations.dart';
 import '../screens/flashcard_editor_screen.dart';
 import '../screens/flashcard_game_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/srs_quiz_screen.dart';
 import '../services/storage_service.dart';
 import '../services/translation_service.dart';
+import '../services/exercise_service_facade.dart';
+import '../providers/settings_provider.dart';
+import '../providers/cards_provider.dart';
 import 'dart:async';
 import 'fill_blanks_screen.dart';
 import 'dart:developer' as developer;
+import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -25,11 +30,19 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _packsExpanded = false;
   bool _showDueCardsOnly = false;
   List<Flashcard> _dueCards = [];
+  bool _isLoadingExercises = false;
+  late ExerciseServiceFacade _exerciseService;
 
   @override
   void initState() {
     super.initState();
     _loadFlashcardPacks();
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _exerciseService = ExerciseServiceFacade(Provider.of<SettingsProvider>(context, listen: false));
   }
 
   Future<void> _loadFlashcardPacks() async {
@@ -38,6 +51,47 @@ class _HomeScreenState extends State<HomeScreen> {
       flashcardPacks = loadedPacks;
       _updateDueCards();
     });
+    
+    // Sync with CardsProvider after loading packs
+    _syncWithCardsProvider();
+    
+    // После загрузки паков предварительно загружаем упражнения
+    _preloadExercises();
+  }
+  
+  void _preloadExercises() async {
+    // Проверяем, есть ли карточки для предзагрузки
+    if (flashcardPacks.isEmpty) {
+      return;
+    }
+    
+    setState(() {
+      _isLoadingExercises = true;
+    });
+    
+    try {
+      developer.log('HomeScreen: Начало предзагрузки упражнений', name: 'home_screen');
+      
+      // Собираем все карточки из всех паков
+      List<Flashcard> allCards = [];
+      for (var pack in flashcardPacks) {
+        allCards.addAll(pack.cards);
+      }
+      
+      // Предварительно загружаем упражнения для первых 20 карточек
+      if (allCards.isNotEmpty) {
+        final cardsToPreload = allCards.take(20).toList();
+        await _exerciseService.prefetchExercises(cardsToPreload);
+      }
+      
+      developer.log('HomeScreen: Предзагрузка упражнений завершена', name: 'home_screen');
+    } catch (e) {
+      developer.log('HomeScreen: Ошибка при предзагрузке упражнений: $e', name: 'home_screen');
+    } finally {
+      setState(() {
+        _isLoadingExercises = false;
+      });
+    }
   }
 
   void _updateDueCards() {
@@ -57,6 +111,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _saveFlashcardPacks() async {
     await StorageService.saveFlashcardPacks(flashcardPacks);
     _updateDueCards();
+    
+    // Sync with CardsProvider after saving packs
+    _syncWithCardsProvider();
   }
 
   void _deletePack(int index) {
@@ -82,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
     List<Flashcard> flashcards = [];
     for (var hanzi in hanziList) {
       try {
-        final result = await TranslationService.translate(hanzi);
+        final result = await TranslationService.translateStatic(hanzi);
         flashcards.add(Flashcard(
           hanzi: hanzi.trim(),
           pinyin: result['pinyin'] ?? '',
@@ -202,6 +259,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _saveFlashcardPacks();
       _nextCard();
     }
+  }
+
+  // Add a method to sync flashcard packs with the CardsProvider
+  void _syncWithCardsProvider() {
+    final cardsProvider = Provider.of<CardsProvider>(context, listen: false);
+    cardsProvider.allPacks = flashcardPacks;
+    cardsProvider.loadDueCards();
   }
 
   @override
@@ -326,6 +390,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           : [],
                     ),
                   ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.quiz),
+              title: Text('srs_quiz'.tr(context)),
+              onTap: () {
+                Navigator.pop(context);
+                // Initialize the cards provider before navigating to the screen
+                final cardsProvider = Provider.of<CardsProvider>(context, listen: false);
+                cardsProvider.allPacks = flashcardPacks;
+                cardsProvider.loadDueCards();
+                
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SrsQuizScreen()),
                 );
               },
             ),
