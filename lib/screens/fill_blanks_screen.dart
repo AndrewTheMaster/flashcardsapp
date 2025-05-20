@@ -36,12 +36,22 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
   bool _hasError = false;
   late ExerciseServiceFacade _exerciseService;
   Map<String, dynamic> _exerciseMetadata = {};
+  double _generationProgress = 0.0;
+  bool _showProgress = false;
 
   @override
   void initState() {
     super.initState();
     _exerciseService = ExerciseServiceFacade(Provider.of<SettingsProvider>(context, listen: false));
     _preloadExercises();
+  }
+  
+  @override
+  void dispose() {
+    // Отменяем все активные запросы при закрытии экрана
+    _exerciseService.cancelAllRequests();
+    developer.log('FillBlanksScreen: dispose вызван, запросы отменены', name: 'fill_blanks_screen');
+    super.dispose();
   }
   
   /// Предварительная загрузка упражнений в кэш
@@ -51,28 +61,41 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       return;
     }
     
+    if (!mounted) return; // Проверка перед обновлением состояния
     setState(() {
       _isPreloading = true;
     });
     
     try {
-      // Выбираем карточки для предзагрузки (до 10 штук)
-      final cardsToPreload = widget.currentPack!.cards.take(10).toList();
+      // Выбираем карточки для предзагрузки (уменьшено до 5 штук для снижения нагрузки)
+      final cardsToPreload = widget.currentPack!.cards.take(5).toList();
       
       // Запускаем предварительную загрузку
       await _exerciseService.prefetchExercises(cardsToPreload);
       
       // После предзагрузки, генерируем первое упражнение
+      if (!mounted) return; // Проверка после асинхронного вызова
       _generateExercise();
     } catch (e) {
       developer.log('Ошибка при предзагрузке упражнений: $e', name: 'fill_blanks_screen');
       // Генерируем упражнение даже если предзагрузка не удалась
+      if (!mounted) return; // Проверка после исключения
       _generateExercise();
     } finally {
+      if (!mounted) return; // Проверка в finally
       setState(() {
         _isPreloading = false;
       });
     }
+  }
+
+  /// Обработчик прогресса генерации
+  void _updateGenerationProgress(double progress) {
+    if (!mounted) return;
+    setState(() {
+      _generationProgress = progress;
+      _showProgress = true;
+    });
   }
 
   void _generateExercise({bool forceRefresh = false, bool nextExercise = false}) async {
@@ -81,10 +104,13 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       return;
     }
 
+    if (!mounted) return; // Проверка перед обновлением состояния
     setState(() {
       _isLoading = true;
       _statusMessage = '';
       _hasError = false;
+      _showProgress = true;
+      _generationProgress = 0.0;
     });
 
     try {
@@ -92,6 +118,9 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       if (nextExercise && currentFlashcard != null) {
         // Получаем следующее упражнение для текущей карточки
         final exerciseData = await _exerciseService.getNextExercise(currentFlashcard!);
+        
+        // Проверяем, смонтирован ли виджет после асинхронного вызова
+        if (!mounted) return;
         
         // Обновляем состояние
         setState(() {
@@ -102,6 +131,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
           selectedOption = '';
           _isLoading = false;
           _exerciseMetadata = exerciseData;
+          _showProgress = false;
         });
         
         developer.log(
@@ -153,8 +183,12 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       // Получаем упражнение с пропусками от сервиса (с флагом forceRefresh)
       final exerciseData = await _exerciseService.generateFillBlanksExercise(
         randomCard, 
-        forceRefresh: forceRefresh
+        forceRefresh: forceRefresh,
+        onProgress: _updateGenerationProgress,
       );
+      
+      // Проверяем, смонтирован ли виджет после асинхронного вызова
+      if (!mounted) return;
       
       // Обновляем состояние
       setState(() {
@@ -165,6 +199,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
         selectedOption = '';
         _isLoading = false;
         _exerciseMetadata = exerciseData;
+        _showProgress = false;
       });
       
       developer.log(
@@ -172,10 +207,13 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
         name: 'fill_blanks_screen'
       );
     } catch (e) {
+      if (!mounted) return; // Проверка перед обновлением состояния в блоке catch
+      
       setState(() {
         _isLoading = false;
         _hasError = true;
         _statusMessage = e.toString();
+        _showProgress = false;
         
         // Создаем простое упражнение при ошибке
         currentSentence = "这是 ____ 。";
@@ -221,6 +259,7 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final isUsingBertChineseWwm = settingsProvider.exerciseService.toString().contains('bertChineseWwm');
     final isOfflineMode = settingsProvider.offlineMode;
+    final isDebugMode = settingsProvider.debugMode;
     
     return Scaffold(
       appBar: AppBar(
@@ -265,218 +304,220 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
                 ? _buildPreloadingIndicator()
                 : (_isLoading 
                   ? _buildLoadingIndicator()
-                  : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Отладочная информация
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        margin: EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.yellow[100],
-                          border: Border.all(color: Colors.amber),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "${('correct_answer').tr(context)}: $hiddenWord",
-                              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                            ),
-                            SizedBox(height: 4),
-                            if (currentFlashcard != null) Text(
-                              "SRS Level: ${currentFlashcard!.repetitionLevel}, Next review: ${currentFlashcard!.nextReviewDate?.toString().substring(0, 10) ?? 'New'}",
-                              style: TextStyle(color: Colors.black54, fontSize: 12),
-                            ),
-                          ],
-                        )
-                      ),
-                      
-                      // Статус сервера при ошибке
-                      if (_hasError)
-                        Container(
+                  : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Отладочная информация - показываем только если включен режим отладки
+                        if (!isDebugMode) Container(
                           padding: EdgeInsets.all(8),
                           margin: EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: Colors.red[100],
-                            border: Border.all(color: Colors.red),
+                            color: Colors.yellow[100],
+                            border: Border.all(color: Colors.amber),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Server Error', 
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red[900]),
+                                "${('correct_answer').tr(context)}: $hiddenWord",
+                                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 4),
+                              if (currentFlashcard != null) Text(
+                                "SRS Level: ${currentFlashcard!.repetitionLevel}, Next review: ${currentFlashcard!.nextReviewDate?.toString().substring(0, 10) ?? 'New'}",
+                                style: TextStyle(color: Colors.black54, fontSize: 12),
+                              ),
+                            ],
+                          )
+                        ),
+                        
+                        // Статус сервера при ошибке
+                        if (_hasError)
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            margin: EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.red[100],
+                              border: Border.all(color: Colors.red),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Server Error', 
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red[900]),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  _statusMessage,
+                                  style: TextStyle(color: Colors.red[900], fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        
+                        // Информация об источнике упражнения - показываем только если включен режим отладки
+                        if (!isDebugMode) Container(
+                          padding: EdgeInsets.all(8),
+                          margin: EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.green[100],
+                            border: Border.all(color: Colors.green),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Источник упражнения:", 
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                                  ),
+                                  if (_getExerciseTotalCount() > 1)
+                                    OutlinedButton.icon(
+                                      icon: Icon(Icons.navigate_next, size: 18),
+                                      label: Text(
+                                        "Следующий вариант",
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                        minimumSize: Size(30, 24),
+                                        foregroundColor: Colors.green[700],
+                                        side: BorderSide(color: Colors.green),
+                                      ),
+                                      onPressed: () => _generateExercise(nextExercise: true),
+                                    ),
+                                ],
                               ),
                               SizedBox(height: 4),
                               Text(
-                                _statusMessage,
-                                style: TextStyle(color: Colors.red[900], fontSize: 12),
+                                _getExerciseSource(),
+                                style: TextStyle(color: Colors.black87, fontSize: 12),
                               ),
+                              if (!isDebugMode && _hasValidationData()) ...[
+                                SizedBox(height: 8),
+                                _buildValidationInfo(),
+                              ],
                             ],
                           ),
                         ),
-                      
-                      // Информация об источнике упражнения
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        margin: EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.green[100],
-                          border: Border.all(color: Colors.green),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
+                        
+                        // Предложение с пропуском
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                currentSentence ?? "",
+                                style: TextStyle(fontSize: 24),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (_exerciseMetadata['pinyin'] != null && _exerciseMetadata['pinyin'].toString().isNotEmpty) ...[
+                                SizedBox(height: 8),
                                 Text(
-                                  "Источник упражнения:", 
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                                  _exerciseMetadata['pinyin'].toString().replaceAll("____", "____"),
+                                  style: TextStyle(fontSize: 14, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                                  textAlign: TextAlign.center,
                                 ),
-                                if (_getExerciseTotalCount() > 1)
-                                  OutlinedButton.icon(
-                                    icon: Icon(Icons.navigate_next, size: 18),
-                                    label: Text(
-                                      "Следующий вариант",
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                                      minimumSize: Size(30, 24),
-                                      foregroundColor: Colors.green[700],
-                                      side: BorderSide(color: Colors.green),
-                                    ),
-                                    onPressed: () => _generateExercise(nextExercise: true),
-                                  ),
                               ],
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              _getExerciseSource(),
-                              style: TextStyle(color: Colors.black87, fontSize: 12),
-                            ),
-                            if (_hasValidationData()) ...[
-                              SizedBox(height: 8),
-                              _buildValidationInfo(),
+                              if (_exerciseMetadata['translation'] != null && _exerciseMetadata['translation'].toString().isNotEmpty) ...[
+                                SizedBox(height: 8),
+                                Text(
+                                  _exerciseMetadata['translation'].toString(),
+                                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      
-                      // Предложение с пропуском
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
+                        
+                        SizedBox(height: 24),
+                        
+                        // Варианты ответов
+                        ...options.map((option) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: OptionButton(
+                            text: option,
+                            isSelected: selectedOption == option,
+                            isCorrect: isChecked && option == hiddenWord,
+                            isWrong: isChecked && selectedOption == option && option != hiddenWord,
+                            onTap: () {
+                              if (!isChecked) {
+                                setState(() {
+                                  selectedOption = option;
+                                });
+                              }
+                            },
+                          ),
+                        )),
+                        
+                        SizedBox(height: 24),
+                        
+                        // Кнопки управления
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            Text(
-                              currentSentence ?? "",
-                              style: TextStyle(fontSize: 24),
-                              textAlign: TextAlign.center,
-                            ),
-                            if (_exerciseMetadata['pinyin'] != null && _exerciseMetadata['pinyin'].toString().isNotEmpty) ...[
-                              SizedBox(height: 8),
-                              Text(
-                                _exerciseMetadata['pinyin'].toString().replaceAll("____", "____"),
-                                style: TextStyle(fontSize: 14, color: Colors.grey[600], fontStyle: FontStyle.italic),
-                                textAlign: TextAlign.center,
+                            if (!isChecked)
+                              ElevatedButton(
+                                onPressed: selectedOption.isEmpty ? null : _checkAnswer,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  disabledBackgroundColor: Theme.of(context).disabledColor,
+                                  disabledForegroundColor: isDarkMode ? Colors.grey[400] : Colors.grey[700],
+                                ),
+                                child: Text('check'.tr(context)),
+                              )
+                            else
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_getExerciseTotalCount() > 1)
+                                    ElevatedButton.icon(
+                                      onPressed: () => _generateExercise(nextExercise: true),
+                                      icon: Icon(Icons.rotate_right),
+                                      label: Text('Следующий вариант'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      ),
+                                    ),
+                                  SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: _generateExercise,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Theme.of(context).colorScheme.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                    ),
+                                    child: Text('next'.tr(context)),
+                                  ),
+                                ],
                               ),
-                            ],
-                            if (_exerciseMetadata['translation'] != null && _exerciseMetadata['translation'].toString().isNotEmpty) ...[
-                              SizedBox(height: 8),
-                              Text(
-                                _exerciseMetadata['translation'].toString(),
-                                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
                           ],
                         ),
-                      ),
-                      
-                      SizedBox(height: 24),
-                      
-                      // Варианты ответов
-                      ...options.map((option) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: OptionButton(
-                          text: option,
-                          isSelected: selectedOption == option,
-                          isCorrect: isChecked && option == hiddenWord,
-                          isWrong: isChecked && selectedOption == option && option != hiddenWord,
-                          onTap: () {
-                            if (!isChecked) {
-                              setState(() {
-                                selectedOption = option;
-                              });
-                            }
-                          },
-                        ),
-                      )),
-                      
-                      Spacer(),
-                      
-                      // Кнопки управления
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          if (!isChecked)
-                            ElevatedButton(
-                              onPressed: selectedOption.isEmpty ? null : _checkAnswer,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                disabledBackgroundColor: Theme.of(context).disabledColor,
-                                disabledForegroundColor: isDarkMode ? Colors.grey[400] : Colors.grey[700],
-                              ),
-                              child: Text('check'.tr(context)),
-                            )
-                          else
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_getExerciseTotalCount() > 1)
-                                  ElevatedButton.icon(
-                                    onPressed: () => _generateExercise(nextExercise: true),
-                                    icon: Icon(Icons.rotate_right),
-                                    label: Text('Следующий вариант'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    ),
-                                  ),
-                                SizedBox(width: 8),
-                                ElevatedButton(
-                                  onPressed: _generateExercise,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Theme.of(context).colorScheme.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  ),
-                                  child: Text('next'.tr(context)),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   )
                 ),
             ),
@@ -509,19 +550,28 @@ class _FillBlanksScreenState extends State<FillBlanksScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text(
-            'Генерация упражнения...',
-            style: TextStyle(fontSize: 18),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Ожидание ответа от сервера (до 60 сек)',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          SizedBox(height: 24),
-          _buildServerInfo(),
+          if (_showProgress && _generationProgress > 0.0) ...[
+            CircularProgressIndicator(value: _generationProgress),
+            SizedBox(height: 16),
+            Text(
+              '${(_generationProgress * 100).toStringAsFixed(0)}%', 
+              style: TextStyle(fontSize: 16)
+            ),
+            SizedBox(height: 8),
+            Text('Генерация упражнения...'),
+          ] else ...[
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Генерация упражнения...'),
+          ],
+          if (_hasError) ...[
+            SizedBox(height: 24),
+            Text(
+              'Ошибка: $_statusMessage',
+              style: TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ]
         ],
       ),
     );

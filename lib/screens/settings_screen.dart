@@ -457,9 +457,34 @@ class _ServerSettingsState extends State<ServerSettings> {
                     onPressed: _isClearingCache ? null : _clearExerciseCache,
                     icon: Icon(Icons.cleaning_services),
                     label: Text('clear_cache'.tr(context)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                    style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.resolveWith<Color>((states) {
+                        if (states.contains(MaterialState.disabled)) {
+                          return Theme.of(context).disabledColor;
+                        }
+                        return Theme.of(context).brightness == Brightness.dark 
+                          ? Colors.red.shade800  // Darker red for dark theme
+                          : Colors.red.shade600; // Lighter red for light theme
+                      }),
+                      foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
                     ),
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 16),
+            
+            // Настройка режима отладки (Debug Mode)
+            Row(
+              children: [
+                Expanded(
+                  child: SwitchListTile(
+                    title: Text('debug_mode'.tr(context)),
+                    subtitle: Text('debug_mode_desc'.tr(context)),
+                    value: Provider.of<SettingsProvider>(context).debugMode,
+                    onChanged: (value) => Provider.of<SettingsProvider>(context, listen: false).setDebugMode(value),
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ],

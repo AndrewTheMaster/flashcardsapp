@@ -55,8 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Sync with CardsProvider after loading packs
     _syncWithCardsProvider();
     
-    // После загрузки паков предварительно загружаем упражнения
-    _preloadExercises();
+    // Закомментирован вызов предзагрузки упражнений на главном экране
+    // Теперь предзагрузка будет происходить только при открытии FillBlanksScreen
+    // _preloadExercises();
   }
   
   void _preloadExercises() async {

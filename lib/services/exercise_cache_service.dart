@@ -9,6 +9,57 @@ class ExerciseCacheService {
   static const int _maxCacheSize = 100; // Максимальное количество кэшированных упражнений
   static const int _maxExercisesPerWord = 5; // Максимальное количество упражнений для одного слова
   
+  // Флаг пакетного кэширования
+  static bool _batchCachingInProgress = false;
+  static Map<String, dynamic> _pendingCacheUpdates = {};
+  
+  /// Начало пакетного кэширования
+  static Future<void> beginBatchCaching() async {
+    _batchCachingInProgress = true;
+    _pendingCacheUpdates = {};
+    developer.log('Начато пакетное кэширование', name: 'exercise_cache');
+  }
+  
+  /// Завершение пакетного кэширования
+  static Future<void> completeBatchCaching() async {
+    if (_batchCachingInProgress) {
+      // Применяем все накопленные обновления кэша
+      if (_pendingCacheUpdates.isNotEmpty) {
+        await _applyPendingCacheUpdates();
+      }
+      _batchCachingInProgress = false;
+      developer.log('Завершено пакетное кэширование', name: 'exercise_cache');
+    }
+  }
+  
+  /// Применение отложенных обновлений кэша
+  static Future<void> _applyPendingCacheUpdates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? cacheJson = prefs.getString(_cacheKey);
+      
+      Map<String, dynamic> cache = {};
+      if (cacheJson != null) {
+        cache = jsonDecode(cacheJson);
+      }
+      
+      // Добавляем все отложенные обновления
+      cache.addAll(_pendingCacheUpdates);
+      
+      // Сохраняем обновленный кэш
+      await prefs.setString(_cacheKey, jsonEncode(cache));
+      developer.log(
+        'Применено ${_pendingCacheUpdates.length} отложенных обновлений кэша',
+        name: 'exercise_cache'
+      );
+      
+      // Очищаем список отложенных обновлений
+      _pendingCacheUpdates = {};
+    } catch (e) {
+      developer.log('Ошибка при применении отложенных обновлений кэша: $e', name: 'exercise_cache');
+    }
+  }
+  
   /// Получение упражнения из кэша
   /// Возвращает null, если упражнение не найдено
   /// Параметр index позволяет выбрать конкретное упражнение из кэша, если их несколько
@@ -128,15 +179,76 @@ class ExerciseCacheService {
     }
   }
   
+  /// Проверка наличия упражнений в кэше для слова без их загрузки
+  static Future<bool> hasCachedExercises(String hanzi) async {
+    try {
+      if (_batchCachingInProgress && _pendingCacheUpdates.containsKey(hanzi)) {
+        return true;  // Упражнение уже в очереди на сохранение
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final String? cacheJson = prefs.getString(_cacheKey);
+      
+      if (cacheJson == null) {
+        return false;
+      }
+      
+      final Map<String, dynamic> cache = jsonDecode(cacheJson);
+      return cache.containsKey(hanzi);
+    } catch (e) {
+      developer.log('Ошибка при проверке кэша: $e', name: 'exercise_cache');
+      return false;
+    }
+  }
+  
   /// Сохранение упражнения в кэш
   static Future<void> saveExercise(String hanzi, Map<String, dynamic> exerciseData) async {
     try {
+      // Проверяем, есть ли уже такое упражнение в кэше
+      final bool hasCached = await hasCachedExercises(hanzi);
+      
+      // Если идет пакетное кэширование, добавляем в отложенные обновления
+      if (_batchCachingInProgress) {
+        // Если это новое слово, просто добавляем его как список с одним элементом
+        if (!hasCached) {
+          _pendingCacheUpdates[hanzi] = [exerciseData];
+          return;
+        }
+        
+        // Если слово уже есть, нужно получить текущие упражнения и проверить на дубликаты
+        final currentExercises = await getAllExercises(hanzi);
+        if (currentExercises == null || currentExercises.isEmpty) {
+          _pendingCacheUpdates[hanzi] = [exerciseData];
+          return;
+        }
+        
+        // Проверяем на дубликат по содержимому
+        bool isDuplicate = _checkForDuplicate(currentExercises, exerciseData);
+        
+        if (!isDuplicate) {
+          // Добавляем новое упражнение, соблюдая лимит
+          if (currentExercises.length >= _maxExercisesPerWord) {
+            currentExercises.removeAt(0);
+          }
+          currentExercises.add(exerciseData);
+          _pendingCacheUpdates[hanzi] = currentExercises;
+        } else {
+          developer.log('Упражнение для "$hanzi" не добавлено в кэш (дубликат)', 
+              name: 'exercise_cache');
+        }
+        
+        return;
+      }
+      
+      // Стандартное сохранение в кэш (не в батче)
       final prefs = await SharedPreferences.getInstance();
-      String? cacheJson = prefs.getString(_cacheKey);
+      final String? cacheJson = prefs.getString(_cacheKey);
       
       Map<String, dynamic> cache = {};
       if (cacheJson != null) {
-        cache = Map<String, dynamic>.from(jsonDecode(cacheJson));
+        cache = jsonDecode(cacheJson);
+      } else {
+        developer.log('Создан новый кэш для "$hanzi"', name: 'exercise_cache');
       }
       
       // Проверяем, есть ли уже упражнения для этого слова
@@ -153,13 +265,7 @@ class ExerciseCacheService {
         }
         
         // Проверяем на дубликат содержимого
-        bool isDuplicate = false;
-        for (var existing in exercisesList) {
-          if (existing['maskedText'] == exerciseData['maskedText']) {
-            isDuplicate = true;
-            break;
-          }
-        }
+        bool isDuplicate = _checkForDuplicate(exercisesList, exerciseData);
         
         // Добавляем новое упражнение, если это не дубликат
         if (!isDuplicate) {
@@ -199,26 +305,73 @@ class ExerciseCacheService {
     }
   }
   
+  /// Проверка на дубликат упражнения
+  static bool _checkForDuplicate(List<dynamic> exercises, Map<String, dynamic> newExercise) {
+    // Проверяем по ключевым полям
+    final String maskedText = newExercise['maskedText'] ?? '';
+    final String correctAnswer = newExercise['correctAnswer'] ?? '';
+    
+    for (var existing in exercises) {
+      if ((existing['maskedText'] == maskedText) ||
+          (maskedText.isNotEmpty && existing['maskedText'] != null && 
+           _normalizeText(existing['maskedText']) == _normalizeText(maskedText))) {
+        // Если текст с пропуском совпадает, это дубликат
+        return true;
+      }
+      
+      // Дополнительная проверка для sentence_with_gap формата
+      if (newExercise.containsKey('sentence_with_gap') && 
+          existing.containsKey('sentence_with_gap')) {
+        final String newSentence = newExercise['sentence_with_gap'] ?? '';
+        final String existingSentence = existing['sentence_with_gap'] ?? '';
+        
+        if (newSentence.isNotEmpty && existingSentence.isNotEmpty &&
+            _normalizeText(newSentence) == _normalizeText(existingSentence)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  /// Нормализация текста для сравнения
+  static String _normalizeText(String text) {
+    // Убираем все пробелы и нормализуем маркеры пропусков
+    return text
+        .replaceAll(' ', '')
+        .replaceAll('[BLANK]', '____')
+        .replaceAll('[MASK]', '____');
+  }
+  
   /// Предварительная загрузка упражнений для списка карточек
   static Future<void> prefetchExercises(List<Flashcard> flashcards, Function(Flashcard) generateExercise) async {
     try {
       developer.log('Начало предварительной загрузки упражнений для ${flashcards.length} карточек', name: 'exercise_cache');
       
-      for (final flashcard in flashcards) {
-        // Проверяем, есть ли упражнение в кэше
-        final cachedExercise = await getExercise(flashcard.hanzi);
-        
-        if (cachedExercise == null) {
-          // Если упражнения нет в кэше, генерируем его
-          try {
-            final exerciseData = await generateExercise(flashcard);
-            await saveExercise(flashcard.hanzi, exerciseData);
-          } catch (e) {
-            developer.log('Ошибка при предзагрузке упражнения для ${flashcard.hanzi}: $e', name: 'exercise_cache');
-            // Продолжаем с следующей карточкой
-            continue;
+      // Инициируем пакетное кэширование
+      await beginBatchCaching();
+      
+      try {
+        for (final flashcard in flashcards) {
+          // Проверяем, есть ли упражнение в кэше
+          final cachedExercise = await getExercise(flashcard.hanzi);
+          
+          if (cachedExercise == null) {
+            // Если упражнения нет в кэше, генерируем его
+            try {
+              final exerciseData = await generateExercise(flashcard);
+              await saveExercise(flashcard.hanzi, exerciseData);
+            } catch (e) {
+              developer.log('Ошибка при предзагрузке упражнения для ${flashcard.hanzi}: $e', name: 'exercise_cache');
+              // Продолжаем с следующей карточкой
+              continue;
+            }
           }
         }
+      } finally {
+        // Всегда завершаем пакетное кэширование, даже при ошибке
+        await completeBatchCaching();
       }
       
       developer.log('Предварительная загрузка упражнений завершена', name: 'exercise_cache');

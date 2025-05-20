@@ -17,6 +17,7 @@ class SettingsProvider with ChangeNotifier {
   String? get serverAddress => _settings.serverAddress;
   String get exerciseComplexity => _settings.exerciseComplexity;
   bool get isDarkMode => _settings.themeMode == ThemeMode.dark;
+  bool get debugMode => _settings.debugMode;
   
   // Инициализация настроек из SharedPreferences
   Future<void> loadSettings() async {
@@ -49,6 +50,9 @@ class SettingsProvider with ChangeNotifier {
     // Загрузка сложности упражнений
     final exerciseComplexity = prefs.getString('exercise_complexity') ?? "normal";
     
+    // Загрузка режима отладки
+    final debugMode = prefs.getBool('debug_mode') ?? false;
+    
     _settings = SettingsModel(
       themeMode: themeMode,
       language: language,
@@ -57,6 +61,7 @@ class SettingsProvider with ChangeNotifier {
       offlineMode: offlineMode,
       serverAddress: serverAddress,
       exerciseComplexity: exerciseComplexity,
+      debugMode: debugMode,
     );
     
     developer.log('SettingsProvider: настройки загружены', name: 'settings_provider');
@@ -75,6 +80,7 @@ class SettingsProvider with ChangeNotifier {
     await prefs.setBool('offline_mode', _settings.offlineMode);
     await prefs.setString('server_address', _settings.serverAddress ?? "http://localhost:8000");
     await prefs.setString('exercise_complexity', _settings.exerciseComplexity);
+    await prefs.setBool('debug_mode', _settings.debugMode);
     
     developer.log('SettingsProvider: настройки сохранены', name: 'settings_provider');
   }
@@ -153,6 +159,16 @@ class SettingsProvider with ChangeNotifier {
     _settings = _settings.copyWith(exerciseComplexity: complexity);
     _saveSettings();
     developer.log('SettingsProvider: сложность упражнений изменена на $complexity', name: 'settings_provider');
+    notifyListeners();
+  }
+  
+  // Изменение режима отладки
+  void setDebugMode(bool mode) {
+    if (_settings.debugMode == mode) return;
+    
+    _settings = _settings.copyWith(debugMode: mode);
+    _saveSettings();
+    developer.log('SettingsProvider: режим отладки изменен на $mode', name: 'settings_provider');
     notifyListeners();
   }
 } 

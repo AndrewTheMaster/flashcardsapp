@@ -115,6 +115,8 @@ class AppLocalizations {
       'translator': 'Translator',
       'validator': 'Validator',
       'available_models': 'Available models',
+      'debug_mode': 'Debug Mode',
+      'debug_mode_desc': 'Hide answer blocks and validation data for exercises',
     },
     'ru': {
       'app_title': 'Карточки',
@@ -219,6 +221,8 @@ class AppLocalizations {
       'translator': 'Переводчик',
       'validator': 'Валидатор',
       'available_models': 'Доступные модели',
+      'debug_mode': 'Режим отладки',
+      'debug_mode_desc': 'Скрывать блоки ответов и данные проверки для упражнений',
     },
   };
 

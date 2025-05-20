@@ -22,6 +22,7 @@ class SettingsModel {
   bool offlineMode;
   String? serverAddress;
   String exerciseComplexity;
+  bool debugMode;
 
   SettingsModel({
     this.language = AppLanguage.english,
@@ -31,6 +32,7 @@ class SettingsModel {
     this.offlineMode = false,
     this.serverAddress = "http://localhost:8000",
     this.exerciseComplexity = "normal",
+    this.debugMode = false,
   });
 
   SettingsModel copyWith({
@@ -41,6 +43,7 @@ class SettingsModel {
     bool? offlineMode,
     String? serverAddress,
     String? exerciseComplexity,
+    bool? debugMode,
   }) {
     return SettingsModel(
       language: language ?? this.language,
@@ -50,6 +53,7 @@ class SettingsModel {
       offlineMode: offlineMode ?? this.offlineMode,
       serverAddress: serverAddress ?? this.serverAddress,
       exerciseComplexity: exerciseComplexity ?? this.exerciseComplexity,
+      debugMode: debugMode ?? this.debugMode,
     );
   }
 
@@ -62,6 +66,7 @@ class SettingsModel {
       'offlineMode': offlineMode,
       'serverAddress': serverAddress,
       'exerciseComplexity': exerciseComplexity,
+      'debugMode': debugMode,
     };
   }
 
@@ -74,6 +79,7 @@ class SettingsModel {
       offlineMode: json['offlineMode'] ?? false,
       serverAddress: json['serverAddress'] ?? "http://localhost:8000",
       exerciseComplexity: json['exerciseComplexity'] ?? "normal",
+      debugMode: json['debugMode'] ?? false,
     );
   }
 } 
