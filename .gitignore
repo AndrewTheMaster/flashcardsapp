@@ -201,6 +201,33 @@ app.*.map.json
 
 # Log files
 *.log
+
 # Python virtual environments
 venv/
 __pycache__/
+**/venv/
+**/__pycache__/
+**/server/chinese-tutor-api/venv/
+env/
+ENV/
+.env
+.venv
+.python-version
+
+# PyTorch specific large files
+**/torch/lib/*.dll
+**/torch/lib/*.lib
+**/torch/lib/*.so
+**/site-packages/torch/
+**/site-packages/torchvision/
+**/site-packages/torchaudio/
+
+# Server generated data
+**/server/chinese-tutor-api/data/
+**/server/cache/
+**/*.pkl
+**/*.pth
+**/*.pt
+**/*.h5
+**/*.pb
+**/*.keras
