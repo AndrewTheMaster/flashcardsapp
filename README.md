@@ -84,7 +84,7 @@ Powerful backend server for AI exercise generation and validation.
 </div>
 
 ## Key Features
-- **Cross-platform**: Works on both iOS and Android devices
+- **Cross-platform**: Works on both iOS (in perspective) and Android devices
 - **Flashcard System**: Create, edit, and review flashcards organized in categories
 - **Offline SRS Quiz System**: Test character writing and pronunciation completely offline
 - **Memory Game**: Interactive character matching game with multiple difficulty levels
@@ -190,7 +190,7 @@ chmod +x clean_project.sh
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. We are especially looking for iOS build support and fixes for potential bugs.
 
 ---
 
@@ -280,7 +280,7 @@ Chinese Flashcards - это инновационное мобильное при
 </div>
 
 ## Основные возможности
-- **Кроссплатформенность**: Работает на устройствах iOS и Android
+- **Кроссплатформенность**: Работает на устройствах iOS (в перспективе) и Android
 - **Система флэш-карточек**: Создание, редактирование и просмотр карточек, организованных по категориям
 - **Офлайн система тестирования SRS**: Тестирование написания и произношения иероглифов полностью офлайн
 - **Игра на память**: Интерактивная игра на сопоставление иероглифов с несколькими уровнями сложности
@@ -386,4 +386,4 @@ chmod +x clean_project.sh
 
 ## Вклад в проект
 
-Мы приветствуем вклад в проект! Не стесняйтесь отправлять Pull Request.
+Мы приветствуем вклад в проект! Не стесняйтесь отправлять Pull Request. Особенно ждем помощи в создании сборки под iOS и исправлении возможных багов.
