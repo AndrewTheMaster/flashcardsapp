@@ -12,24 +12,83 @@
 
 Chinese Flashcards is an innovative mobile application designed to help students learn Chinese through AI-generated "fill-in-the-blank" exercises created from authentic Chinese texts. The application leverages ChineseBERT, a specialized NLP model for Chinese language processing, to generate personalized learning content.
 
-## Screenshots
-
 <div align="center">
-  <div style="display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 10px;">
-    <img src="screenshots/main_screen.png" width="200" alt="Main Screen"/>
-    <img src="screenshots/menu_screen.png" width="200" alt="Menu Screen"/>
-    <img src="screenshots/memory_game_screen.png" width="200" alt="Memory Game"/>
-    <img src="screenshots/generated_stuff_screen.png" width="200" alt="Generated Exercises"/>
-  </div>
+  <img src="screenshots/menu.png" width="200" alt="Main Menu Screen"/>
 </div>
 
 ## Features
 
-### Working Features
+### Flashcard System
+Basic flashcard creation and review with categories for organizing your study materials.
+
+<div align="center">
+  <img src="screenshots/flashcards_list.png" width="200" alt="Flashcard Packs List"/>
+  <img src="screenshots/flashcard_editor.png" width="200" alt="Flashcard Editor"/>
+  <img src="screenshots/flashcard_viewer.png" width="200" alt="Flashcard Viewer"/>
+  <img src="screenshots/add_new_pack.png" width="200" alt="Adding New Pack"/>
+</div>
+
+### Offline SRS Quiz System
+Test your knowledge of characters with our Spaced Repetition System that works completely offline. Practice character writing, translation, and pronunciation using multiple input methods.
+
+<div align="center">
+  <img src="screenshots/SRSquiz_translation_test.png" width="200" alt="Translation Quiz"/>
+  <img src="screenshots/SRSquiz_translation_test_correct.png" width="200" alt="Correct Translation"/>
+  <img src="screenshots/SRSquiz_character_drawig_test.png" width="200" alt="Character Drawing Test"/>
+  <img src="screenshots/SRSquiz_character_puinuin_writing_test.png" width="200" alt="Pinyin Writing Test"/>
+  <img src="screenshots/SRSquiz_character_voice_test.png" width="200" alt="Voice Pronunciation Test"/>
+</div>
+
+### Memory Game
+Interactive character matching game with multiple difficulty levels to improve character recognition.
+
+<div align="center">
+  <img src="screenshots/memory_game_start.png" width="200" alt="Memory Game Start"/>
+  <img src="screenshots/memory_game_progress.png" width="200" alt="Memory Game in Progress"/>
+  <img src="screenshots/memory_game_complete.png" width="200" alt="Memory Game Complete"/>
+</div>
+
+### AI-Powered Exercises
+Personalized learning exercises generated using advanced NLP models with instant feedback.
+
+<div align="center">
+  <img src="screenshots/exercise_generation.png" width="200" alt="Exercise Generation"/>
+  <img src="screenshots/exercise_blank.png" width="200" alt="Exercise with Blank"/>
+  <img src="screenshots/exercise_correct.png" width="200" alt="Correct Answer"/>
+  <img src="screenshots/exercise_wrong.png" width="200" alt="Wrong Answer"/>
+</div>
+
+### Translation Service
+Built-in translation capabilities with pinyin transcription.
+
+<div align="center">
+  <img src="screenshots/translation_service_input_result.png" width="200" alt="Translation Service"/>
+</div>
+
+### User Settings and Localization
+Customize your experience with dark/light themes and language preferences.
+
+<div align="center">
+  <img src="screenshots/settings_dart_theme_russian_localization.png" width="200" alt="Dark Theme with Russian UI"/>
+  <img src="screenshots/settings_dark_theme_english_localization.png" width="200" alt="Dark Theme with English UI"/>
+  <img src="screenshots/settings_server_and_comlixity.png" width="200" alt="Server Settings"/>
+</div>
+
+### Backend Server
+Powerful backend server for AI exercise generation and validation.
+
+<div align="center">
+  <img src="screenshots/server_running.png" width="300" alt="Server Running"/>
+  <img src="screenshots/server_lm_studio_model.png" width="300" alt="LM Studio Model"/>
+  <img src="screenshots/server_model_bert_validation_result.png" width="300" alt="BERT Validation Results"/>
+</div>
+
+## Key Features
 - **Cross-platform**: Works on both iOS and Android devices
-- **Flashcard System**: Basic flashcard creation and review with categories
-- **Memory Game**: Interactive character matching game with difficulty levels
-- **User Profiles**: Basic user account system with progress tracking
+- **Flashcard System**: Create, edit, and review flashcards organized in categories
+- **Offline SRS Quiz System**: Test character writing and pronunciation completely offline
+- **Memory Game**: Interactive character matching game with multiple difficulty levels
+- **AI-Powered Exercises**: "Fill-in-the-blank" exercises generated using NLP models
 - **Dark/Light Mode**: Adjustable application theme
 - **Personalized AI Learning System**:
   - Content generation using Gemma-3-4b-it-qat model
@@ -149,24 +208,83 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 Chinese Flashcards - это инновационное мобильное приложение, разработанное для помощи студентам в изучении китайского языка через упражнения "заполни пропуск", созданные с помощью ИИ на основе аутентичных китайских текстов. Приложение использует ChineseBERT, специализированную NLP-модель для обработки китайского языка, чтобы генерировать персонализированный учебный контент.
 
-## Скриншоты
-
 <div align="center">
-  <div style="display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 10px;">
-    <img src="screenshots/main_screen.png" width="200" alt="Главный экран"/>
-    <img src="screenshots/menu_screen.png" width="200" alt="Экран меню"/>
-    <img src="screenshots/memory_game_screen.png" width="200" alt="Игра на память"/>
-    <img src="screenshots/generated_stuff_screen.png" width="200" alt="Сгенерированные упражнения"/>
-  </div>
+  <img src="screenshots/menu.png" width="200" alt="Главное меню"/>
 </div>
 
 ## Функции
 
-### Работающие функции
+### Система флэш-карточек
+Базовое создание и просмотр карточек с категориями для организации учебных материалов.
+
+<div align="center">
+  <img src="screenshots/flashcards_list.png" width="200" alt="Список наборов карточек"/>
+  <img src="screenshots/flashcard_editor.png" width="200" alt="Редактор карточек"/>
+  <img src="screenshots/flashcard_viewer.png" width="200" alt="Просмотр карточки"/>
+  <img src="screenshots/add_new_pack.png" width="200" alt="Добавление нового набора"/>
+</div>
+
+### Офлайн система тестирования SRS
+Тестируйте свои знания иероглифов с помощью нашей системы интервальных повторений, работающей полностью офлайн. Практикуйте написание иероглифов, перевод и произношение с использованием различных методов ввода.
+
+<div align="center">
+  <img src="screenshots/SRSquiz_translation_test.png" width="200" alt="Тест перевода"/>
+  <img src="screenshots/SRSquiz_translation_test_correct.png" width="200" alt="Правильный перевод"/>
+  <img src="screenshots/SRSquiz_character_drawig_test.png" width="200" alt="Тест на рисование иероглифов"/>
+  <img src="screenshots/SRSquiz_character_puinuin_writing_test.png" width="200" alt="Тест написания пиньинь"/>
+  <img src="screenshots/SRSquiz_character_voice_test.png" width="200" alt="Тест голосового произношения"/>
+</div>
+
+### Игра на память
+Интерактивная игра на сопоставление иероглифов с уровнями сложности для улучшения распознавания символов.
+
+<div align="center">
+  <img src="screenshots/memory_game_start.png" width="200" alt="Начало игры на память"/>
+  <img src="screenshots/memory_game_progress.png" width="200" alt="Игра в процессе"/>
+  <img src="screenshots/memory_game_complete.png" width="200" alt="Завершение игры"/>
+</div>
+
+### Упражнения с поддержкой ИИ
+Персонализированные учебные упражнения, созданные с использованием продвинутых NLP моделей с мгновенной обратной связью.
+
+<div align="center">
+  <img src="screenshots/exercise_generation.png" width="200" alt="Генерация упражнения"/>
+  <img src="screenshots/exercise_blank.png" width="200" alt="Упражнение с пропуском"/>
+  <img src="screenshots/exercise_correct.png" width="200" alt="Правильный ответ"/>
+  <img src="screenshots/exercise_wrong.png" width="200" alt="Неправильный ответ"/>
+</div>
+
+### Сервис перевода
+Встроенные возможности перевода с транскрипцией пиньинь.
+
+<div align="center">
+  <img src="screenshots/translation_service_input_result.png" width="200" alt="Сервис перевода"/>
+</div>
+
+### Настройки пользователя и локализация
+Настройте свой опыт с темной/светлой темой и предпочтениями по языку.
+
+<div align="center">
+  <img src="screenshots/settings_dart_theme_russian_localization.png" width="200" alt="Темная тема с русским интерфейсом"/>
+  <img src="screenshots/settings_dark_theme_english_localization.png" width="200" alt="Темная тема с английским интерфейсом"/>
+  <img src="screenshots/settings_server_and_comlixity.png" width="200" alt="Настройки сервера"/>
+</div>
+
+### Серверная часть
+Мощный бэкенд-сервер для генерации и валидации упражнений с ИИ.
+
+<div align="center">
+  <img src="screenshots/server_running.png" width="300" alt="Запущенный сервер"/>
+  <img src="screenshots/server_lm_studio_model.png" width="300" alt="Модель LM Studio"/>
+  <img src="screenshots/server_model_bert_validation_result.png" width="300" alt="Результаты валидации BERT"/>
+</div>
+
+## Основные возможности
 - **Кроссплатформенность**: Работает на устройствах iOS и Android
-- **Система флэш-карточек**: Базовое создание и просмотр карточек с категориями
-- **Игра на память**: Интерактивная игра на сопоставление иероглифов с уровнями сложности
-- **Профили пользователей**: Базовая система пользовательских аккаунтов с отслеживанием прогресса
+- **Система флэш-карточек**: Создание, редактирование и просмотр карточек, организованных по категориям
+- **Офлайн система тестирования SRS**: Тестирование написания и произношения иероглифов полностью офлайн
+- **Игра на память**: Интерактивная игра на сопоставление иероглифов с несколькими уровнями сложности
+- **Упражнения с поддержкой ИИ**: Упражнения "заполни пропуск", сгенерированные с использованием NLP моделей
 - **Темный/светлый режим**: Настраиваемая тема приложения
 - **Персонализированная система обучения с ИИ**:
   - Генерация контента с использованием модели Gemma-3-4b-it-qat
@@ -248,13 +366,13 @@ chmod +x run_server.sh
 - Порт по умолчанию: 5000 (может быть изменен при запуске)
 - LM Studio: Должен быть запущен на вашем компьютере с загруженной моделью Gemma-3-4b-it-qat
 - Интеграция с LM Studio: Используйте полный URL с протоколом (например, http://192.168.x.x:1234)
-- Подключение к мобильному устройству: 
+- Подключение мобильного устройства: 
   - Для эмуляторов: Используйте 10.0.2.2:5000
   - Для реальных устройств: Используйте локальный IP-адрес вашего компьютера
 
 ## Очистка проекта
 
-Перед отправкой в Git запустите скрипт очистки, чтобы удалить артефакты сборки и большие файлы моделей:
+Перед коммитом в Git, запустите скрипт очистки для удаления артефактов сборки и больших файлов моделей:
 
 ```bash
 # Windows
@@ -266,6 +384,6 @@ chmod +x clean_project.sh
 ./clean_project.sh
 ```
 
-## Участие в разработке
+## Вклад в проект
 
-Мы приветствуем вклад в развитие проекта! Пожалуйста, не стесняйтесь отправлять Pull Request.
+Мы приветствуем вклад в проект! Не стесняйтесь отправлять Pull Request.
